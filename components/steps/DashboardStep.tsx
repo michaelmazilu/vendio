@@ -25,23 +25,20 @@ const timelineLabels = [
   { label: "Marketplace post live", Icon: RocketIcon },
 ];
 
-export default function DashboardStep({ summary, onCreateAnother }: DashboardStepProps) {
-  const {
-    listing,
-    marketplaces,
-    primaryPhotoUrl,
-    photoUrls,
-    listingUrl,
-    marketplaceUrls,
-    postMessages,
-    postedAt,
-  } = summary;
 export default function DashboardStep({
   summary,
   onCreateAnother,
   onViewListing,
 }: DashboardStepProps) {
-  const { listing, marketplaces, primaryPhotoUrl, photoUrls, postedAt } = summary;
+  const {
+    listing,
+    marketplaces,
+    primaryPhotoUrl,
+    photoUrls,
+    marketplaceUrls,
+    postMessages,
+    postedAt,
+  } = summary;
 
   const postedDate = new Date(postedAt);
   const dateLabel = postedDate.toLocaleString(undefined, {

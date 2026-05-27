@@ -21,7 +21,6 @@ import type {
   ListingWithActivity,
   Marketplace,
   MarketplacePostResult,
-  PostedListingSummary,
   UploadedPhoto,
 } from "@/types/app";
 
@@ -48,7 +47,6 @@ export default function Page() {
   const [notes, setNotes] = useState("");
   const [listing, setListing] = useState<GeneratedListing | null>(null);
   const [storedImageIds, setStoredImageIds] = useState<string[]>([]);
-  const [summary, setSummary] = useState<PostedListingSummary | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
   const [listings, setListings] = useState<ListingWithActivity[]>([]);
@@ -78,7 +76,6 @@ export default function Page() {
     setNotes("");
     setListing(null);
     setStoredImageIds([]);
-    setSummary(null);
     setGenerateError(null);
     setPostError(null);
     setStep("upload");
@@ -140,8 +137,6 @@ export default function Page() {
         ? "https://www.facebook.com/marketplace"
         : "https://www.kijiji.ca");
 
-    const postedSummary: PostedListingSummary = {
-      id: `listing-${Date.now().toString(36)}`,
     const id = `listing-${Date.now().toString(36)}`;
     const conversations = generateMockConversations(listing, connected);
     const stats = mockStats();
@@ -156,14 +151,6 @@ export default function Page() {
       listingUrl: primaryUrl,
       marketplaceUrls,
       postMessages,
-    };
-
-    setSummary(postedSummary);
-    setPostError(null);
-      listingUrl:
-        connected[0] === "facebook"
-          ? `https://www.facebook.com/marketplace/item/${id}`
-          : `https://www.kijiji.ca/v-${id}`,
       views: stats.views,
       saves: stats.saves,
       conversations,
@@ -171,6 +158,7 @@ export default function Page() {
 
     setListings((current) => [postedSummary, ...current]);
     setActiveListingId(id);
+    setPostError(null);
     setStep("dashboard");
   }
 
@@ -182,7 +170,6 @@ export default function Page() {
   }
 
   const flowIndex = useMemo(() => stepToFlowIndex[step], [step]);
-  const showStepper = flowIndex !== undefined && step !== "home";
   const canPost = storedImageIds.length > 0;
   const showStepper = flowIndex !== undefined && step !== "home" && step !== "inbox";
 

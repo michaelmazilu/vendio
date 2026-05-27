@@ -307,9 +307,14 @@ export default function InboxStep({
         continue;
       }
       const key = `${convo.id}:${last.id}`;
+      const conversationSettled =
+        convo.status === "meetup_scheduled" ||
+        convo.status === "sold" ||
+        convo.status === "closed";
       if (
         last.sender === "buyer" &&
         convo.autopilot &&
+        !conversationSettled &&
         !pendingConvoIds.has(convo.id) &&
         !triggeredRef.current.has(key)
       ) {
