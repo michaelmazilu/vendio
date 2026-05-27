@@ -79,7 +79,7 @@ export default function ConnectStep({
 
       <div className="mt-8 text-center">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-600">
-          Step 1 of 3
+          Step 1 of 4
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
           Connect your marketplaces

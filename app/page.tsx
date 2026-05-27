@@ -105,7 +105,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navbar onHome={goHome} />
+      <Navbar onHome={goHome} isHome={step === "home"} />
 
       {showStepper ? (
         <div className="border-b border-slate-200 bg-white">

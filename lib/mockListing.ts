@@ -37,7 +37,12 @@ function titleCase(value: string) {
 function pickTitle(notes: string, category: ListingCategory): string {
   const cleaned = notes.trim();
   if (cleaned.length > 0) {
-    const words = cleaned.split(/\s+/).slice(0, 6).join(" ");
+    const words = cleaned
+      .split(/\s+/)
+      .map((word) => word.replace(/[^a-zA-Z0-9-]/g, ""))
+      .filter(Boolean)
+      .slice(0, 6)
+      .join(" ");
     return titleCase(words);
   }
 
