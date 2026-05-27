@@ -2,8 +2,8 @@
 
 import {
   CheckCircleIcon,
-  ExternalLinkIcon,
   FacebookIcon,
+  InboxIcon,
   KijijiIcon,
   PlusIcon,
   RocketIcon,
@@ -15,6 +15,7 @@ import type { PostedListingSummary } from "@/types/app";
 type DashboardStepProps = {
   summary: PostedListingSummary;
   onCreateAnother: () => void;
+  onViewListing: () => void;
 };
 
 const timelineLabels = [
@@ -35,6 +36,12 @@ export default function DashboardStep({ summary, onCreateAnother }: DashboardSte
     postMessages,
     postedAt,
   } = summary;
+export default function DashboardStep({
+  summary,
+  onCreateAnother,
+  onViewListing,
+}: DashboardStepProps) {
+  const { listing, marketplaces, primaryPhotoUrl, photoUrls, postedAt } = summary;
 
   const postedDate = new Date(postedAt);
   const dateLabel = postedDate.toLocaleString(undefined, {
@@ -139,15 +146,14 @@ export default function DashboardStep({ summary, onCreateAnother }: DashboardSte
             </div>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <a
-                href={listingUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={onViewListing}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
               >
-                <ExternalLinkIcon className="h-4 w-4" />
+                <InboxIcon className="h-4 w-4" />
                 View Listing
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={onCreateAnother}
