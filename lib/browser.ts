@@ -230,7 +230,8 @@ export async function getKijijiSession(): Promise<KijijiSession | null> {
 }
 
 export async function isKijijiLoggedIn(): Promise<boolean> {
-  return (await getKijijiSession()) !== null;
+  const verified = await verifyKijijiSession();
+  return verified.connected;
 }
 
 export async function clearKijijiSession() {
@@ -247,8 +248,20 @@ async function writeKijijiSession() {
   await writeFile(kijijiSessionMarkerPath, JSON.stringify(session, null, 2));
 }
 
+const kijijiHomeUrl = "https://www.kijiji.ca/";
+
+async function isKijijiErrorPage(page: Page): Promise<boolean> {
+  const url = page.url();
+  if (/t-login\.html|m-user-login\.html/i.test(url)) {
+    return true;
+  }
+
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  return /page not found|no longer exists|404/i.test(bodyText);
+}
+
 /**
- * Best-effort logged-in check: on kijiji.ca, away from any auth path, with no
+ * Best-effort logged-in check: on kijiji.ca, away from error/auth pages, with no
  * visible "Sign In" / "Register" link in the header.
  */
 async function isKijijiSignedInOnPage(page: Page): Promise<boolean> {
@@ -256,12 +269,17 @@ async function isKijijiSignedInOnPage(page: Page): Promise<boolean> {
   if (!/kijiji\.ca/i.test(url)) {
     return false;
   }
-  if (/t-login|\/login|sign-?in|register|\/auth/i.test(url)) {
+
+  if (await isKijijiErrorPage(page)) {
+    return false;
+  }
+
+  if (/\/forgot-password/i.test(url)) {
     return false;
   }
 
   const signInVisible = await page
-    .getByRole("link", { name: /sign in|register|log in/i })
+    .getByRole("link", { name: /register\s*or\s*sign\s*in|^sign\s*in$|log\s*in/i })
     .first()
     .isVisible()
     .catch(() => false);
@@ -270,18 +288,52 @@ async function isKijijiSignedInOnPage(page: Page): Promise<boolean> {
 }
 
 /**
- * Opens the headed Kijiji login page and waits for the user to complete login
- * manually. Resolves once the header no longer shows a sign-in link, persisting
- * a session marker for later gating.
+ * Kijiji retired legacy login URLs (e.g. t-login.html). Open sign-in from the
+ * live homepage header, or via post-ad when that flow redirects to auth.
+ */
+async function openKijijiSignIn(page: Page) {
+  await page.goto(kijijiHomeUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.bringToFront();
+
+  if (await isKijijiSignedInOnPage(page)) {
+    return;
+  }
+
+  const signInLink = page.getByRole("link", { name: /register\s*or\s*sign\s*in|^sign\s*in$/i }).first();
+
+  try {
+    await signInLink.waitFor({ state: "visible", timeout: 8_000 });
+    await signInLink.click();
+    await page.waitForLoadState("domcontentloaded", { timeout: 20_000 }).catch(() => undefined);
+  } catch {
+    await page.goto("https://www.kijiji.ca/p-post-ad.html", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+  }
+
+  if (await isKijijiErrorPage(page)) {
+    await page.goto(kijijiHomeUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    throw new Error(
+      "Kijiji could not open the sign-in page. Click Register or Sign In at the top of kijiji.ca in the browser window.",
+    );
+  }
+}
+
+/**
+ * Opens Kijiji sign-in and waits for the user to complete login manually.
+ * Resolves once the header no longer shows a sign-in link.
  */
 export async function loginToKijiji(
   timeoutMs = 110_000,
 ): Promise<{ loggedIn: boolean; message: string }> {
   const page = await getAutomationPage("kijiji");
-  await page
-    .goto("https://www.kijiji.ca/t-login.html", { waitUntil: "domcontentloaded", timeout: 60_000 })
-    .catch(() => undefined);
-  await page.bringToFront();
+  await openKijijiSignIn(page);
+
+  if (await isKijijiSignedInOnPage(page).catch(() => false)) {
+    await writeKijijiSession();
+    return { loggedIn: true, message: "Kijiji session is already connected." };
+  }
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -295,8 +347,27 @@ export async function loginToKijiji(
 
   return {
     loggedIn: false,
-    message: "Login wasn't completed in time. Click Connect to open the browser and try again.",
+    message:
+      "Login wasn't completed in time. Use Register or Sign In at kijiji.ca in the browser window, then click Connect again.",
   };
+}
+
+export async function verifyKijijiSession(): Promise<{ connected: boolean }> {
+  try {
+    const page = await getAutomationPage("kijiji");
+    await page.goto(kijijiHomeUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+    if (await isKijijiSignedInOnPage(page)) {
+      await writeKijijiSession();
+      return { connected: true };
+    }
+
+    await clearKijijiSession();
+    return { connected: false };
+  } catch {
+    await clearKijijiSession();
+    return { connected: false };
+  }
 }
 
 export async function openKijijiPostAd() {

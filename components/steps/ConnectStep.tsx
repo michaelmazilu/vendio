@@ -40,7 +40,8 @@ const options: Option[] = [
   {
     id: "kijiji",
     name: "Kijiji",
-    description: "Canada's largest classifieds platform for fast local sales.",
+    description:
+      "Opens kijiji.ca — click Register or Sign In in the browser (about 2 minutes). Session stays on your device.",
     Icon: KijijiIcon,
     accent: "bg-emerald-50 text-emerald-700",
   },
@@ -153,7 +154,7 @@ export default function ConnectStep({
                       <span className="vendio-spinner h-4 w-4 rounded-full border-2 border-slate-200 border-t-indigo-600" />
                       Connecting...
                     </span>
-                    {option.id === "facebook" ? (
+                    {option.id === "facebook" || option.id === "kijiji" ? (
                       <span className="text-[10px] leading-tight text-slate-400">
                         Sign in in the browser
                       </span>

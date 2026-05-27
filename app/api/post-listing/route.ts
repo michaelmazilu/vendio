@@ -2,7 +2,7 @@ import { postToFacebookMarketplace } from "@/lib/adapters/facebook";
 import { postToKijiji } from "@/lib/adapters/kijiji";
 import { postToMockMarketplace } from "@/lib/adapters/mockMarketplace";
 import { normalizeListingDraft } from "@/lib/ai";
-import { isKijijiLoggedIn, verifyFacebookSession } from "@/lib/browser";
+import { verifyFacebookSession, verifyKijijiSession } from "@/lib/browser";
 import { getStoredImage, getStoredImages } from "@/lib/imageStorage";
 import type { PostListingResponse } from "@/types/listing";
 
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
     }
 
     if (target === "kijiji") {
-      if (!(await isKijijiLoggedIn())) {
+      const kijijiSession = await verifyKijijiSession();
+      if (!kijijiSession.connected) {
         return Response.json(
           {
             error:

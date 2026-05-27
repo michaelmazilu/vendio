@@ -43,9 +43,14 @@ async function firstVisible(locator: Locator, timeout = 2_000) {
 }
 
 async function detectKijijiBlocker(page: Page) {
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  if (/page not found|no longer exists/i.test(bodyText) || /t-login\.html/i.test(page.url())) {
+    return "Kijiji returned a missing page. Connect Kijiji again and sign in from the homepage (Register or Sign In).";
+  }
+
   const url = page.url();
-  if (/\/(login|sign-?in|auth)/i.test(url)) {
-    return "Kijiji needs you to log in. Complete login in the opened browser, then try posting again.";
+  if (/\/(login|sign-?in|auth|forgot-password)/i.test(url)) {
+    return "Kijiji needs you to log in. Connect Kijiji and use Register or Sign In on kijiji.ca, then try posting again.";
   }
 
   const blockerText = await firstVisible(

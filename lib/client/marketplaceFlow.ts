@@ -17,15 +17,13 @@ export async function connectMarketplace(marketplace: Marketplace) {
 }
 
 export async function disconnectMarketplace(marketplace: Marketplace) {
-  if (marketplace !== "facebook") {
-    return;
-  }
-
-  const response = await fetch("/api/facebook/disconnect", { method: "POST" });
+  const endpoint =
+    marketplace === "facebook" ? "/api/facebook/disconnect" : "/api/kijiji/disconnect";
+  const response = await fetch(endpoint, { method: "POST" });
   const payload = (await response.json()) as { error?: string };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Could not disconnect Facebook.");
+    throw new Error(payload.error ?? `Could not disconnect ${marketplace}.`);
   }
 }
 
