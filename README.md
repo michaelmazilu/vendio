@@ -1,5 +1,10 @@
 # Vendio
 
+
+WATCH THIS: https://drive.google.com/file/d/1SKkyN3Wyj3g5zOWXZXFeXclKxuJvGw6Z/view?usp=sharing
+WATCH THIS: https://drive.google.com/file/d/1SKkyN3Wyj3g5zOWXZXFeXclKxuJvGw6Z/view?usp=sharing
+
+
 > AI marketplace autopilot — turn item photos into complete marketplace listings and post them to Kijiji and Facebook Marketplace.
 
 Vendio is a polished, single-page demo that guides the user through a calm, magical flow: connect marketplaces → upload photos → generate a listing with AI → review and edit → post → see the result on a live dashboard.
