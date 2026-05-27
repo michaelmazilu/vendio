@@ -14,6 +14,7 @@ import ReviewStep from "@/components/steps/ReviewStep";
 import UploadStep from "@/components/steps/UploadStep";
 import { generateListingFromPhotos } from "@/lib/client/marketplaceFlow";
 import { buildListingWithActivity, revokeUploadedPhotos } from "@/lib/client/listingSummary";
+import { buildDemoConversation } from "@/lib/demoConversation";
 import type {
   AppStep,
   GeneratedListing,
@@ -132,7 +133,15 @@ export default function Page() {
       results,
     });
 
-    setListings((current) => [postedSummary, ...current]);
+    // Seed a single hardcoded "Sarah Kim" demo conversation so the inbox shows
+    // end-to-end buyer ↔ Vendio AI ↔ Calendly-based meetup without needing a
+    // real Facebook / Kijiji login. See lib/demoConversation.ts.
+    const seededSummary = {
+      ...postedSummary,
+      conversations: [buildDemoConversation(listing, connected[0] ?? "facebook")],
+    };
+
+    setListings((current) => [seededSummary, ...current]);
     setActiveListingId(id);
     setPostError(null);
     setStep("dashboard");
@@ -256,7 +265,10 @@ export default function Page() {
             listings={listings}
             setListings={setListings}
             defaultListingId={activeListingId ?? undefined}
-            live
+            // Live polling is off while we're shipping the hardcoded Sarah Kim
+            // demo conversation — turn it back on once real FB/Kijiji buyers can
+            // reach the listing.
+            live={false}
             onCreateAnother={resetFlow}
             onBack={goHome}
           />
