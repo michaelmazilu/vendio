@@ -256,6 +256,7 @@ export default function Page() {
             listings={listings}
             setListings={setListings}
             defaultListingId={activeListingId ?? undefined}
+            live
             onCreateAnother={resetFlow}
             onBack={goHome}
           />

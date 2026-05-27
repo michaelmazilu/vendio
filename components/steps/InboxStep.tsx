@@ -22,6 +22,12 @@ import {
   ToggleOffIcon,
   ToggleOnIcon,
 } from "@/components/Icons";
+import {
+  pollAutoReply,
+  sendSellerReply,
+  setAutopilotRemote,
+  type AutoReplyResponse,
+} from "@/lib/client/autoReply";
 import type {
   AiReplyIntent,
   AiReplyResult,
@@ -37,6 +43,7 @@ type InboxStepProps = {
   listings: ListingWithActivity[];
   setListings: Dispatch<SetStateAction<ListingWithActivity[]>>;
   defaultListingId?: string;
+  live?: boolean;
   onCreateAnother: () => void;
   onBack: () => void;
 };
@@ -104,6 +111,7 @@ export default function InboxStep({
   listings,
   setListings,
   defaultListingId,
+  live = true,
   onCreateAnother,
   onBack,
 }: InboxStepProps) {
@@ -119,9 +127,11 @@ export default function InboxStep({
 
   const triggeredRef = useRef<Set<string>>(new Set());
   const listingsRef = useRef(listings);
+  const selectedConvoIdRef = useRef(selectedConvoId);
   useEffect(() => {
     listingsRef.current = listings;
-  }, [listings]);
+    selectedConvoIdRef.current = selectedConvoId;
+  }, [listings, selectedConvoId]);
 
   const selectedListing = useMemo(
     () => listings.find((listing) => listing.id === selectedListingId) ?? null,
@@ -193,6 +203,64 @@ export default function InboxStep({
     });
   }, []);
 
+  const mergeServerState = useCallback(
+    (listingId: string, result: AutoReplyResponse) => {
+      const keepReadId = selectedConvoIdRef.current ?? result.conversations[0]?.id ?? null;
+      setListings((current) =>
+        current.map((listing) => {
+          if (listing.id !== listingId) {
+            return listing;
+          }
+          return {
+            ...listing,
+            conversations: result.conversations.map((convo) =>
+              convo.id === keepReadId ? { ...convo, unread: 0 } : convo,
+            ),
+            activity: result.activity,
+          };
+        }),
+      );
+    },
+    [setListings],
+  );
+
+  // Live mode: the server runs the detect -> AI reply -> send loop. Poll it and
+  // merge the authoritative conversation state back into the inbox.
+  useEffect(() => {
+    if (!live || !selectedListingId) {
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = async () => {
+      const listing = listingsRef.current.find((entry) => entry.id === selectedListingId);
+      if (listing) {
+        try {
+          const result = await pollAutoReply(listing.id, listing.listing);
+          if (!cancelled) {
+            mergeServerState(listing.id, result);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      if (!cancelled) {
+        timer = setTimeout(tick, 4_000);
+      }
+    };
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [live, selectedListingId, mergeServerState]);
+
   const requestAiReply = useCallback(
     async (listingId: string, convoId: string) => {
       const listing = listingsRef.current.find((item) => item.id === listingId);
@@ -252,7 +320,7 @@ export default function InboxStep({
   );
 
   useEffect(() => {
-    if (!selectedListing) {
+    if (live || !selectedListing) {
       return;
     }
     for (const convo of selectedListing.conversations) {
@@ -276,13 +344,21 @@ export default function InboxStep({
         void requestAiReply(selectedListing.id, convo.id);
       }
     }
-  }, [selectedListing, pendingConvoIds, requestAiReply]);
+  }, [live, selectedListing, pendingConvoIds, requestAiReply]);
 
   function toggleAutopilot(listingId: string, convoId: string) {
-    updateConversation(listingId, convoId, (current) => ({
-      ...current,
-      autopilot: !current.autopilot,
-    }));
+    const listing = listingsRef.current.find((entry) => entry.id === listingId);
+    const convo = listing?.conversations.find((entry) => entry.id === convoId);
+    const next = !(convo?.autopilot ?? true);
+
+    // Optimistic local flip for snappy UI.
+    updateConversation(listingId, convoId, (current) => ({ ...current, autopilot: next }));
+
+    if (live && listing) {
+      void setAutopilotRemote(listing.id, listing.listing, convoId, next)
+        .then((result) => mergeServerState(listing.id, result))
+        .catch((error) => console.error(error));
+    }
   }
 
   function markRead(listingId: string, convoId: string) {
@@ -310,11 +386,20 @@ export default function InboxStep({
     if (!text) {
       return;
     }
-    appendMessage(selectedListing.id, selectedConversation.id, {
-      sender: "seller_user",
-      content: text,
-    });
+
+    const listingId = selectedListing.id;
+    const convoId = selectedConversation.id;
+    const listingData = selectedListing.listing;
+
+    // Optimistic append so the seller sees their message immediately.
+    appendMessage(listingId, convoId, { sender: "seller_user", content: text });
     setDraft("");
+
+    if (live) {
+      void sendSellerReply(listingId, listingData, convoId, text)
+        .then((result) => mergeServerState(listingId, result))
+        .catch((error) => console.error(error));
+    }
   }
 
   if (!selectedListing) {
@@ -342,7 +427,14 @@ export default function InboxStep({
       <ConversationPane
         conversation={selectedConversation}
         isAiThinking={
-          selectedConversation ? pendingConvoIds.has(selectedConversation.id) : false
+          selectedConversation
+            ? live
+              ? selectedConversation.autopilot &&
+                !["meetup_scheduled", "sold", "closed"].includes(selectedConversation.status) &&
+                selectedConversation.messages[selectedConversation.messages.length - 1]?.sender ===
+                  "buyer"
+              : pendingConvoIds.has(selectedConversation.id)
+            : false
         }
         draft={draft}
         onDraftChange={setDraft}
