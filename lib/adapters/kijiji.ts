@@ -118,10 +118,17 @@ async function clickButton(page: Page, name: RegExp) {
 
 async function uploadPhotos(page: Page, images: StoredImageRecord[]) {
   const fileInput = page.locator('input[type="file"]').first();
+  await fileInput.waitFor({ state: "attached", timeout: 10_000 });
   await fileInput.setInputFiles(
     images.map((image) => image.absolutePath),
     { timeout: 10_000 },
   );
+}
+
+function formatManualNote(warnings: string[]) {
+  return warnings.length > 0
+    ? ` Finish ${warnings.join(", ")} manually in the browser before posting.`
+    : "";
 }
 
 async function pickCategory(page: Page, category: ListingCategory) {
@@ -178,14 +185,17 @@ async function chooseCondition(page: Page, condition: ListingCondition) {
       (await firstVisible(page.getByText(matcher), 2_000));
     if (option) {
       await option.click();
-      return;
+      return true;
     }
   }
 
   const radio = await firstVisible(page.getByRole("radio", { name: matcher }), 2_000);
   if (radio) {
     await radio.click();
+    return true;
   }
+
+  return false;
 }
 
 export async function postToKijiji({ listing, images }: KijijiPostInput): Promise<KijijiPostResult> {
@@ -205,7 +215,15 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
   await fillTextField(page, /title|what are you selling|keyword/i, listing.title, {
     fallbackToFirstTextbox: true,
   });
-  await clickButton(page, /^(next|go|continue|search)$/i);
+  const titleStepAdvanced = await clickButton(page, /^(next|go|continue|search)$/i);
+  if (!titleStepAdvanced) {
+    return {
+      listingUrl: page.url(),
+      message:
+        "Kijiji title is filled in the browser. Continue manually to category and details before posting.",
+    };
+  }
+
   await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
 
   const postNavBlocker = await detectKijijiBlocker(page);
@@ -224,26 +242,46 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
     };
   }
 
-  await uploadPhotos(page, images);
+  const warnings: string[] = [];
+
+  try {
+    await uploadPhotos(page, images);
+  } catch {
+    warnings.push("photos");
+  }
 
   try {
     await fillTextField(page, /price/i, String(listing.price));
   } catch {
-    // Some categories use "Please Contact" or alternate price controls.
+    warnings.push("price");
   }
 
-  await fillTextField(page, /description/i, listing.description);
+  try {
+    await fillTextField(page, /description/i, listing.description);
+  } catch {
+    warnings.push("description");
+  }
 
   try {
-    await chooseCondition(page, listing.condition);
+    if (!(await chooseCondition(page, listing.condition))) {
+      warnings.push("condition");
+    }
   } catch {
-    // Condition fields vary by Kijiji category.
+    warnings.push("condition");
   }
 
   try {
     await fillTextField(page, /location|postal|city/i, listing.location);
   } catch {
     // Kijiji often pre-fills location from the account profile.
+  }
+
+  const manualNote = formatManualNote(warnings);
+  if (warnings.length > 0) {
+    return {
+      listingUrl: page.url(),
+      message: `Kijiji draft is open in the browser, but Vendio could not confidently fill every required field.${manualNote}`,
+    };
   }
 
   const published = await clickButton(page, /post your ad|post ad|publish/i);

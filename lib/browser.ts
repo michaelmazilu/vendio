@@ -1,7 +1,7 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 
 export type AutomationProfile = "facebook" | "kijiji";
 
@@ -14,6 +14,8 @@ const profileDirs: Record<AutomationProfile, string> = {
 
 const sessionMarkerPath = path.join(dataDir, "facebook-session.json");
 const kijijiSessionMarkerPath = path.join(dataDir, "kijiji-session.json");
+const kijijiHomeUrl = "https://www.kijiji.ca/";
+const kijijiPostAdUrl = "https://www.kijiji.ca/p-post-ad.html";
 
 export type FacebookSession = {
   userId: string;
@@ -23,6 +25,8 @@ export type FacebookSession = {
 export type KijijiSession = {
   connectedAt: string;
 };
+
+type KijijiAuthState = "signed-in" | "signed-out" | "unknown";
 
 type BrowserGlobal = typeof globalThis & {
   __vendioBrowserContexts?: Partial<Record<AutomationProfile, Promise<BrowserContext>>>;
@@ -144,6 +148,11 @@ export async function verifyFacebookSession(): Promise<{
   userId?: string;
 }> {
   try {
+    const marker = await getFacebookSession();
+    if (!marker) {
+      return { connected: false };
+    }
+
     const context = await getAutomationContext("facebook");
     const userId = await readFacebookUserId(context);
     if (userId) {
@@ -223,7 +232,11 @@ export async function getKijijiSession(): Promise<KijijiSession | null> {
   try {
     const contents = await readFile(kijijiSessionMarkerPath, "utf8");
     const parsed = JSON.parse(contents) as Partial<KijijiSession>;
-    return { connectedAt: parsed.connectedAt ?? "" };
+    if (typeof parsed.connectedAt !== "string" || parsed.connectedAt.length === 0) {
+      return null;
+    }
+
+    return { connectedAt: parsed.connectedAt };
   } catch {
     return null;
   }
@@ -248,8 +261,6 @@ async function writeKijijiSession() {
   await writeFile(kijijiSessionMarkerPath, JSON.stringify(session, null, 2));
 }
 
-const kijijiHomeUrl = "https://www.kijiji.ca/";
-
 async function isKijijiErrorPage(page: Page): Promise<boolean> {
   const url = page.url();
   if (/t-login\.html|m-user-login\.html/i.test(url)) {
@@ -260,31 +271,53 @@ async function isKijijiErrorPage(page: Page): Promise<boolean> {
   return /page not found|no longer exists|404/i.test(bodyText);
 }
 
-/**
- * Best-effort logged-in check: on kijiji.ca, away from error/auth pages, with no
- * visible "Sign In" / "Register" link in the header.
- */
-async function isKijijiSignedInOnPage(page: Page): Promise<boolean> {
+function isKijijiAuthUrl(url: string) {
+  return /\/(login|sign-?in|auth|forgot-password|register)/i.test(url);
+}
+
+async function isVisible(locator: Locator, timeout = 1_000) {
+  try {
+    await locator.first().waitFor({ state: "visible", timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getKijijiAuthState(page: Page): Promise<KijijiAuthState> {
   const url = page.url();
   if (!/kijiji\.ca/i.test(url)) {
-    return false;
+    return "unknown";
   }
 
-  if (await isKijijiErrorPage(page)) {
-    return false;
+  if ((await isKijijiErrorPage(page)) || isKijijiAuthUrl(url)) {
+    return "signed-out";
   }
 
-  if (/\/forgot-password/i.test(url)) {
-    return false;
+  const signedOutControl = page
+    .locator("a, button")
+    .filter({ hasText: /register\s*or\s*sign\s*in|^sign\s*in$|^log\s*in$/i });
+
+  if (await isVisible(signedOutControl)) {
+    return "signed-out";
   }
 
-  const signInVisible = await page
-    .getByRole("link", { name: /register\s*or\s*sign\s*in|^sign\s*in$|log\s*in/i })
-    .first()
-    .isVisible()
-    .catch(() => false);
+  const signedInControl = page
+    .locator("a, button")
+    .filter({ hasText: /my kijiji|my ads|messages|notifications|account|profile|sign out/i });
 
-  return !signInVisible;
+  if (await isVisible(signedInControl)) {
+    return "signed-in";
+  }
+
+  if (/\/p-post-ad\.html/i.test(url)) {
+    const postAdFormControl = page.locator('form, input, textarea, [contenteditable="true"]');
+    if (await isVisible(postAdFormControl, 2_000)) {
+      return "signed-in";
+    }
+  }
+
+  return "unknown";
 }
 
 /**
@@ -294,19 +327,23 @@ async function isKijijiSignedInOnPage(page: Page): Promise<boolean> {
 async function openKijijiSignIn(page: Page) {
   await page.goto(kijijiHomeUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.bringToFront();
+  await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
 
-  if (await isKijijiSignedInOnPage(page)) {
+  if ((await getKijijiAuthState(page)) === "signed-in") {
     return;
   }
 
-  const signInLink = page.getByRole("link", { name: /register\s*or\s*sign\s*in|^sign\s*in$/i }).first();
+  const signInLink = page
+    .locator("a, button")
+    .filter({ hasText: /register\s*or\s*sign\s*in|^sign\s*in$|^log\s*in$/i })
+    .first();
 
   try {
     await signInLink.waitFor({ state: "visible", timeout: 8_000 });
     await signInLink.click();
     await page.waitForLoadState("domcontentloaded", { timeout: 20_000 }).catch(() => undefined);
   } catch {
-    await page.goto("https://www.kijiji.ca/p-post-ad.html", {
+    await page.goto(kijijiPostAdUrl, {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
@@ -322,7 +359,7 @@ async function openKijijiSignIn(page: Page) {
 
 /**
  * Opens Kijiji sign-in and waits for the user to complete login manually.
- * Resolves once the header no longer shows a sign-in link.
+ * Resolves only after Kijiji shows an explicit signed-in signal.
  */
 export async function loginToKijiji(
   timeoutMs = 110_000,
@@ -330,14 +367,15 @@ export async function loginToKijiji(
   const page = await getAutomationPage("kijiji");
   await openKijijiSignIn(page);
 
-  if (await isKijijiSignedInOnPage(page).catch(() => false)) {
+  if ((await getKijijiAuthState(page).catch(() => "unknown")) === "signed-in") {
     await writeKijijiSession();
     return { loggedIn: true, message: "Kijiji session is already connected." };
   }
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await isKijijiSignedInOnPage(page).catch(() => false)) {
+    const authState = await getKijijiAuthState(page).catch(() => "unknown");
+    if (authState === "signed-in") {
       await writeKijijiSession();
       return { loggedIn: true, message: "Kijiji connected. You can post your listing now." };
     }
@@ -354,10 +392,17 @@ export async function loginToKijiji(
 
 export async function verifyKijijiSession(): Promise<{ connected: boolean }> {
   try {
-    const page = await getAutomationPage("kijiji");
-    await page.goto(kijijiHomeUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    const marker = await getKijijiSession();
+    if (!marker) {
+      return { connected: false };
+    }
 
-    if (await isKijijiSignedInOnPage(page)) {
+    const page = await getAutomationPage("kijiji");
+    await page.goto(kijijiPostAdUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
+
+    const authState = await getKijijiAuthState(page);
+    if (authState === "signed-in" || (authState === "unknown" && !isKijijiAuthUrl(page.url()))) {
       await writeKijijiSession();
       return { connected: true };
     }
@@ -372,7 +417,7 @@ export async function verifyKijijiSession(): Promise<{ connected: boolean }> {
 
 export async function openKijijiPostAd() {
   const page = await getAutomationPage("kijiji");
-  await page.goto("https://www.kijiji.ca/p-post-ad.html", {
+  await page.goto(kijijiPostAdUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });

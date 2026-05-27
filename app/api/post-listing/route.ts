@@ -32,10 +32,15 @@ export async function POST(request: Request) {
     const listing = normalizeListingDraft(
       payload.listing && typeof payload.listing === "object" ? payload.listing : {},
     );
-    const target =
-      payload.target === "mock" || payload.target === "kijiji" || payload.target === "facebook"
-        ? payload.target
-        : "facebook";
+    if (
+      payload.target !== "mock" &&
+      payload.target !== "kijiji" &&
+      payload.target !== "facebook"
+    ) {
+      return Response.json({ error: "Invalid marketplace target." }, { status: 400 });
+    }
+
+    const target = payload.target;
 
     if (target === "mock") {
       const image = await getStoredImage(imageIds[0]);

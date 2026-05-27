@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   CheckIcon,
@@ -40,6 +40,13 @@ export default function PostingStep({
 }: PostingStepProps) {
   const [activeStage, setActiveStage] = useState(0);
   const [activeMarketplace, setActiveMarketplace] = useState<Marketplace | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onErrorRef.current = onError;
+  }, [onComplete, onError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,11 +76,11 @@ export default function PostingStep({
 
         setActiveStage(stages.length - 1);
         if (!cancelled) {
-          onComplete(results);
+          onCompleteRef.current(results);
         }
       } catch (error) {
         if (!cancelled) {
-          onError(error instanceof Error ? error.message : "Could not post listing.");
+          onErrorRef.current(error instanceof Error ? error.message : "Could not post listing.");
         }
       }
     }
@@ -83,7 +90,7 @@ export default function PostingStep({
     return () => {
       cancelled = true;
     };
-  }, [marketplaces, listing, imageIds, onComplete, onError]);
+  }, [marketplaces, listing, imageIds]);
 
   const progress = Math.min(1, (activeStage + 1) / stages.length);
 

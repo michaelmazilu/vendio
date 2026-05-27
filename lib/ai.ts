@@ -21,6 +21,17 @@ type AiListingPayload = {
 
 const defaultLocation = "Toronto, ON";
 
+const DESCRIPTION_SYSTEM = `You are Vendio, an expert marketplace copywriter for private sellers in Canada. You write listing descriptions that read like a thoughtful human owner wrote them — warm, specific, and trustworthy — and that make buyers want to message right away.
+
+Rules:
+- Ground every claim in the provided photos and known fields. Never invent brands, sizes, materials, or features you cannot see or that aren't given.
+- Open with one punchy hook line naming the item and its single strongest selling point.
+- Then give 2-4 short, scannable lines covering concrete details visible in the photos (color, material, finish, notable features) plus the condition.
+- Be honest about condition; if wear is visible, mention it plainly without overselling.
+- Close with a friendly logistics line: pickup-friendly, payment (cash or e-transfer), and an invitation to message with questions.
+- Voice: natural, confident, concrete. No hype words ("amazing", "must-have"), no clichés, no emojis, no ALL CAPS, no hashtags.
+- Keep it under 800 characters total. Output strict JSON only.`;
+
 function clampText(value: unknown, fallback: string, maxLength: number) {
   if (typeof value !== "string") {
     return fallback;
@@ -154,13 +165,18 @@ export async function generateDescriptionFromImages({
       },
       body: JSON.stringify({
         model: process.env.OPENAI_VISION_MODEL ?? "gpt-4.1-mini",
+        instructions: DESCRIPTION_SYSTEM,
+        temperature: 0.7,
+        max_output_tokens: 600,
         input: [
           {
             role: "user",
             content: [
               {
                 type: "input_text",
-                text: `Write only the description for a Facebook Marketplace listing. Do not invent title, price, category, condition, or location. Known fields: title="${basics.title}", price="${basics.price} CAD", category="${basics.category}", condition="${basics.condition}", location="${basics.location}". Keep it friendly, specific to the photos, honest, concise, and under 900 characters. Return JSON only: {"description":"..."}.`,
+                text: `Write the marketplace listing description for this item.
+Known fields (do not contradict): title="${basics.title}", price="$${basics.price} CAD", category="${basics.category}", condition="${basics.condition}", location="${basics.location}".
+Study the attached photo(s) and weave in specific, verifiable visual details (color, material, condition cues, any visible model markings). Return JSON only: {"description":"..."}.`,
               },
               ...imageContent,
             ],

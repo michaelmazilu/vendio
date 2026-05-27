@@ -13,6 +13,22 @@ export const LISTING_CONDITIONS = ["New", "Like New", "Good", "Fair"] as const;
 
 export type ListingCategory = (typeof LISTING_CATEGORIES)[number];
 export type ListingCondition = (typeof LISTING_CONDITIONS)[number];
+export type ListingStatus =
+  | "draft"
+  | "generated"
+  | "ready_to_post"
+  | "posting_assist"
+  | "needs_manual_review"
+  | "published"
+  | "failed"
+  | "sold"
+  | "archived";
+export type MarketplacePostStatus =
+  | "pending"
+  | "filling"
+  | "needs_manual_review"
+  | "published"
+  | "failed";
 
 export type ListingDraft = {
   title: string;
@@ -21,6 +37,12 @@ export type ListingDraft = {
   category: ListingCategory;
   condition: ListingCondition;
   location: string;
+  confidence?: number;
+  detectedItem?: string;
+  pricingRationale?: string;
+  photoWarnings?: string[];
+  qualityIssues?: string[];
+  marketplaceCopy?: Partial<Record<"facebook" | "kijiji", string>>;
 };
 
 export type ListingBasics = Omit<ListingDraft, "description">;
@@ -45,6 +67,7 @@ export type PostedListing = ListingDraft & {
 };
 
 export type GenerateListingResponse = {
+  listingId: string;
   listing: ListingDraft;
   images: StoredImagePublic[];
   aiMode: "openai" | "fallback";
@@ -53,7 +76,13 @@ export type GenerateListingResponse = {
 export type PostListingResponse = {
   success: true;
   marketplace: "facebook" | "kijiji" | "mock";
+  status?: MarketplacePostStatus;
+  attemptId?: string;
   listingUrl?: string;
+  publishedUrl?: string;
   message: string;
+  fieldWarnings?: string[];
+  screenshotPath?: string;
+  manualActionRequired?: boolean;
   listing: ListingDraft;
 };

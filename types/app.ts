@@ -12,6 +12,24 @@ export type AppStep =
 
 export type Marketplace = "facebook" | "kijiji";
 
+export type ListingStatus =
+  | "draft"
+  | "generated"
+  | "ready_to_post"
+  | "posting_assist"
+  | "needs_manual_review"
+  | "published"
+  | "failed"
+  | "sold"
+  | "archived";
+
+export type MarketplacePostStatus =
+  | "pending"
+  | "filling"
+  | "needs_manual_review"
+  | "published"
+  | "failed";
+
 export type UploadedPhoto = {
   id: string;
   file: File;
@@ -27,17 +45,30 @@ export type GeneratedListing = {
   category: ListingCategory;
   condition: ListingCondition;
   location: string;
+  confidence?: number;
+  detectedItem?: string;
+  pricingRationale?: string;
+  photoWarnings?: string[];
+  qualityIssues?: string[];
+  marketplaceCopy?: Partial<Record<Marketplace, string>>;
 };
 
 export type MarketplacePostResult = {
   marketplace: Marketplace;
   listingUrl?: string;
   message: string;
+  status?: MarketplacePostStatus;
+  attemptId?: string;
+  fieldWarnings?: string[];
+  screenshotPath?: string;
+  publishedUrl?: string;
+  manualActionRequired?: boolean;
 };
 
 export type PostedListingSummary = {
   id: string;
   listing: GeneratedListing;
+  status: ListingStatus;
   marketplaces: Marketplace[];
   primaryPhotoUrl: string;
   photoUrls: string[];
@@ -45,6 +76,8 @@ export type PostedListingSummary = {
   listingUrl: string;
   marketplaceUrls: Partial<Record<Marketplace, string>>;
   postMessages: Partial<Record<Marketplace, string>>;
+  marketplaceStatuses: Partial<Record<Marketplace, MarketplacePostStatus>>;
+  activity: ActivityEvent[];
 };
 
 export type MessageSender = "buyer" | "seller_ai" | "seller_user";
@@ -54,6 +87,9 @@ export type Message = {
   sender: MessageSender;
   content: string;
   createdAt: string;
+  source?: "manual" | "openai" | "fallback" | "imported";
+  aiDraft?: boolean;
+  approvedByUser?: boolean;
 };
 
 export type ConversationStatus =
@@ -89,12 +125,20 @@ export type Conversation = {
   autopilot: boolean;
   lastMessageAt: string;
   meetup?: Meetup;
+  negotiationFloor?: number;
 };
 
 export type ListingWithActivity = PostedListingSummary & {
   views: number;
   saves: number;
   conversations: Conversation[];
+};
+
+export type ActivityEvent = {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
 };
 
 export type AiReplyIntent =

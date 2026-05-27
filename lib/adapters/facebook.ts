@@ -154,6 +154,12 @@ async function clickOptionalButton(page: Page, name: RegExp) {
   return true;
 }
 
+function formatManualNote(warnings: string[]) {
+  return warnings.length > 0
+    ? ` Finish ${warnings.join(", ")} manually in the browser before publishing.`
+    : "";
+}
+
 export async function postToFacebookMarketplace({
   listing,
   images,
@@ -215,14 +221,17 @@ export async function postToFacebookMarketplace({
     // Facebook often pre-fills location from the account profile.
   }
 
+  const manualNote = formatManualNote(warnings);
+
+  if (warnings.length > 0) {
+    return {
+      listingUrl: page.url(),
+      message: `Facebook draft is open in the browser, but Vendio could not confidently fill every required field.${manualNote}`,
+    };
+  }
+
   await clickOptionalButton(page, /^next$/i);
   const published = await clickOptionalButton(page, /^(publish|post)$/i);
-
-  const manualNote =
-    warnings.length > 0
-      ? ` Finish ${warnings.join(", ")} manually in the browser if needed.`
-      : "";
-
   if (!published) {
     return {
       listingUrl: page.url(),
