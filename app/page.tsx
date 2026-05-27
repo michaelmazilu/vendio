@@ -8,15 +8,17 @@ import ConnectStep from "@/components/steps/ConnectStep";
 import DashboardStep from "@/components/steps/DashboardStep";
 import GeneratingStep from "@/components/steps/GeneratingStep";
 import HomeStep from "@/components/steps/HomeStep";
+import InboxStep from "@/components/steps/InboxStep";
 import PostingStep from "@/components/steps/PostingStep";
 import ReviewStep from "@/components/steps/ReviewStep";
 import UploadStep from "@/components/steps/UploadStep";
 import { generateMockListing } from "@/lib/mockListing";
+import { generateMockConversations, mockStats } from "@/lib/mockBuyers";
 import type {
   AppStep,
   GeneratedListing,
+  ListingWithActivity,
   Marketplace,
-  PostedListingSummary,
   UploadedPhoto,
 } from "@/types/app";
 
@@ -42,7 +44,8 @@ export default function Page() {
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [notes, setNotes] = useState("");
   const [listing, setListing] = useState<GeneratedListing | null>(null);
-  const [summary, setSummary] = useState<PostedListingSummary | null>(null);
+  const [listings, setListings] = useState<ListingWithActivity[]>([]);
+  const [activeListingId, setActiveListingId] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -64,11 +67,9 @@ export default function Page() {
   }
 
   function resetFlow() {
-    photos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
     setPhotos([]);
     setNotes("");
     setListing(null);
-    setSummary(null);
     setStep("upload");
   }
 
@@ -84,7 +85,10 @@ export default function Page() {
     }
 
     const id = `listing-${Date.now().toString(36)}`;
-    const postedSummary: PostedListingSummary = {
+    const conversations = generateMockConversations(listing, connected);
+    const stats = mockStats();
+
+    const postedSummary: ListingWithActivity = {
       id,
       listing,
       marketplaces: [...connected],
@@ -95,17 +99,44 @@ export default function Page() {
         connected[0] === "facebook"
           ? `https://www.facebook.com/marketplace/item/${id}`
           : `https://www.kijiji.ca/v-${id}`,
+      views: stats.views,
+      saves: stats.saves,
+      conversations,
     };
-    setSummary(postedSummary);
+
+    setListings((current) => [postedSummary, ...current]);
+    setActiveListingId(id);
     setStep("dashboard");
   }
 
+  function openInbox(listingId?: string) {
+    if (listingId) {
+      setActiveListingId(listingId);
+    }
+    setStep("inbox");
+  }
+
   const flowIndex = useMemo(() => stepToFlowIndex[step], [step]);
-  const showStepper = flowIndex !== undefined && step !== "home";
+  const showStepper = flowIndex !== undefined && step !== "home" && step !== "inbox";
+
+  const activeSummary = useMemo(
+    () => listings.find((entry) => entry.id === activeListingId) ?? null,
+    [listings, activeListingId],
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navbar onHome={goHome} isHome={step === "home"} />
+      <Navbar
+        onHome={goHome}
+        isHome={step === "home"}
+        showInbox={listings.length > 0}
+        onOpenInbox={() => openInbox()}
+        totalUnread={listings.reduce(
+          (sum, listingItem) =>
+            sum + listingItem.conversations.reduce((c, convo) => c + convo.unread, 0),
+          0,
+        )}
+      />
 
       {showStepper ? (
         <div className="border-b border-slate-200 bg-white">
@@ -158,8 +189,22 @@ export default function Page() {
           <PostingStep marketplaces={connected} onComplete={finishPosting} />
         ) : null}
 
-        {step === "dashboard" && summary ? (
-          <DashboardStep summary={summary} onCreateAnother={resetFlow} />
+        {step === "dashboard" && activeSummary ? (
+          <DashboardStep
+            summary={activeSummary}
+            onCreateAnother={resetFlow}
+            onViewListing={() => openInbox(activeSummary.id)}
+          />
+        ) : null}
+
+        {step === "inbox" ? (
+          <InboxStep
+            listings={listings}
+            setListings={setListings}
+            defaultListingId={activeListingId ?? undefined}
+            onCreateAnother={resetFlow}
+            onBack={goHome}
+          />
         ) : null}
       </main>
     </div>
