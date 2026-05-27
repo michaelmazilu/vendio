@@ -1,0 +1,31 @@
+# dependencies
+node_modules
+.npm
+
+# build artifacts
+.next
+out
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# runtime data
+.vendio
+public/uploads
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local screenshots / scratch
+*.tmp
+vendio-ui-*.png

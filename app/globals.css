@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --vendio-bg: #f8fafc;
+  --vendio-surface: #ffffff;
+  --vendio-border: #e2e8f0;
+  --vendio-text: #0f172a;
+  --vendio-text-muted: #475569;
+  --vendio-accent: #4f46e5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--vendio-bg);
+  color: var(--vendio-text);
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+  font-family: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+@keyframes vendio-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vendio-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vendio-pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 1;
+  }
+}
+
+@keyframes vendio-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vendio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vendio-step-enter {
+  animation: vendio-fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vendio-fade-in {
+  animation: vendio-fade 280ms ease-out both;
+}
+
+.vendio-pulse-dot {
+  animation: vendio-pulse-dot 1.4s ease-in-out infinite;
+}
+
+.vendio-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(79, 70, 229, 0.08) 50%,
+    transparent 100%
+  );
+  animation: vendio-shimmer 1.6s linear infinite;
+}
+
+.vendio-spinner {
+  animation: vendio-spin 0.9s linear infinite;
+}
