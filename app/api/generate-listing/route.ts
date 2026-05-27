@@ -1,4 +1,8 @@
-import { generateDescriptionFromImages, normalizeListingBasics } from "@/lib/ai";
+import {
+  generateDescriptionFromImages,
+  generateFullListingFromImages,
+  normalizeListingBasics,
+} from "@/lib/ai";
 import { saveUploadedImages, toPublicImages } from "@/lib/imageStorage";
 import type { GenerateListingResponse } from "@/types/listing";
 
@@ -15,25 +19,36 @@ export async function POST(request: Request) {
       return Response.json({ error: "Upload at least one item photo first." }, { status: 400 });
     }
 
-    const basics = normalizeListingBasics({
-      title: formData.get("title"),
-      price: formData.get("price"),
-      category: formData.get("category"),
-      condition: formData.get("condition"),
-      location: formData.get("location"),
-    });
     const images = await saveUploadedImages(files);
-    const generated = await generateDescriptionFromImages({ basics, images });
 
+    const titleField = formData.get("title");
+    const notes = (formData.get("notes") as string | null)?.trim() ?? "";
+    const location =
+      (formData.get("location") as string | null)?.trim() || "Toronto, ON";
+
+    if (typeof titleField === "string" && titleField.trim().length > 0) {
+      const basics = normalizeListingBasics({
+        title: titleField,
+        price: formData.get("price"),
+        category: formData.get("category"),
+        condition: formData.get("condition"),
+        location: formData.get("location"),
+      });
+      const generated = await generateDescriptionFromImages({ basics, images });
+      const response: GenerateListingResponse = {
+        listing: { ...basics, description: generated.description },
+        images: toPublicImages(images),
+        aiMode: generated.aiMode,
+      };
+      return Response.json(response);
+    }
+
+    const full = await generateFullListingFromImages({ images, notes, location });
     const response: GenerateListingResponse = {
-      listing: {
-        ...basics,
-        description: generated.description,
-      },
+      listing: full.listing,
       images: toPublicImages(images),
-      aiMode: generated.aiMode,
+      aiMode: full.aiMode,
     };
-
     return Response.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not generate listing.";

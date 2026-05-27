@@ -220,3 +220,132 @@ export async function generateListingFromImage(
   };
 }
 
+function fallbackFullListing(
+  notes: string,
+  images: StoredImageRecord[],
+  location: string,
+): ListingDraft {
+  const baseTitle = notes.trim().slice(0, 60) || "Quality pre-owned item";
+  return {
+    title: baseTitle,
+    description: `Selling this item in good condition.${
+      notes.trim() ? ` Seller notes: ${notes.trim()}.` : ""
+    } ${images.length} photo${
+      images.length === 1 ? "" : "s"
+    } attached so you can see exactly what you're getting. Located in ${location}. Message to arrange a pickup.`,
+    price: 50,
+    category: "Other",
+    condition: "Good",
+    location,
+  };
+}
+
+export async function generateFullListingFromImages({
+  images,
+  notes,
+  location = defaultLocation,
+}: {
+  images: StoredImageRecord[];
+  notes: string;
+  location?: string;
+}): Promise<{ listing: ListingDraft; aiMode: "openai" | "fallback" }> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { listing: fallbackFullListing(notes, images, location), aiMode: "fallback" };
+  }
+
+  try {
+    const imageContent = await Promise.all(
+      images.slice(0, 6).map(async (image) => ({
+        type: "input_image",
+        image_url: await imageToDataUrl(image),
+      })),
+    );
+
+    const userText = `You are writing a marketplace listing for resale on Kijiji and Facebook Marketplace.
+Look at the photos and write a complete listing. Be specific and honest — only describe what you actually see.
+
+${notes.trim() ? `Seller's notes: "${notes.trim()}"` : "No seller notes provided."}
+Seller location: ${location}.
+
+Return JSON only with these fields:
+- title: a clear, specific title (4-10 words, no clickbait, no emojis).
+- description: 2-4 short paragraphs (under 900 chars). Friendly, honest, mention condition and key features visible in the photos. End with a line about pickup or messaging.
+- price: a fair price in CAD as a whole number (no currency symbol).
+- category: one of [Electronics, Furniture, Home Goods, Clothing, Collectibles, Sports, Books, Other].
+- condition: one of [New, Like New, Good, Fair].`;
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_VISION_MODEL ?? "gpt-4.1-mini",
+        input: [
+          {
+            role: "user",
+            content: [{ type: "input_text", text: userText }, ...imageContent],
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "marketplace_listing",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["title", "description", "price", "category", "condition"],
+              properties: {
+                title: { type: "string" },
+                description: { type: "string" },
+                price: { type: "integer" },
+                category: { type: "string", enum: [...LISTING_CATEGORIES] },
+                condition: { type: "string", enum: [...LISTING_CONDITIONS] },
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`OpenAI request failed with ${response.status}: ${errBody.slice(0, 400)}`);
+    }
+
+    const body = (await response.json()) as unknown;
+    const text = extractResponseText(body);
+    if (!text) {
+      throw new Error("OpenAI response missing listing JSON.");
+    }
+
+    const parsed = JSON.parse(text) as {
+      title?: unknown;
+      description?: unknown;
+      price?: unknown;
+      category?: unknown;
+      condition?: unknown;
+    };
+
+    const listing: ListingDraft = {
+      title: clampText(parsed.title, "Quality pre-owned item", 80),
+      description: clampText(
+        parsed.description,
+        fallbackFullListing(notes, images, location).description,
+        900,
+      ),
+      price: normalizePrice(parsed.price),
+      category: normalizeCategory(parsed.category),
+      condition: normalizeCondition(parsed.condition),
+      location,
+    };
+
+    return { listing, aiMode: "openai" };
+  } catch (error) {
+    console.warn("Falling back to deterministic full listing generation:", error);
+    return { listing: fallbackFullListing(notes, images, location), aiMode: "fallback" };
+  }
+}
+

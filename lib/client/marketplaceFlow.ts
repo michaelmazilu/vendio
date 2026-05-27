@@ -40,7 +40,7 @@ export async function generateListingFromPhotos({
   photos.forEach((photo) => formData.append("photos", photo));
   formData.append("location", location);
   if (notes.trim()) {
-    formData.append("title", notes.trim().slice(0, 80));
+    formData.append("notes", notes.trim());
   }
 
   const response = await fetch("/api/generate-listing", {

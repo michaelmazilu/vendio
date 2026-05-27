@@ -13,8 +13,6 @@ import PostingStep from "@/components/steps/PostingStep";
 import ReviewStep from "@/components/steps/ReviewStep";
 import UploadStep from "@/components/steps/UploadStep";
 import { generateListingFromPhotos } from "@/lib/client/marketplaceFlow";
-import { generateMockListing } from "@/lib/mockListing";
-import { generateMockConversations, mockStats } from "@/lib/mockBuyers";
 import type {
   AppStep,
   GeneratedListing,
@@ -96,19 +94,8 @@ export default function Page() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not generate listing from your photos.";
-
-      try {
-        const fallback = generateMockListing(notes);
-        setListing(fallback);
-        setStoredImageIds([]);
-        setGenerateError(
-          `${message} Showing an offline draft — connect Playwright and retry for real posting.`,
-        );
-        setStep("review");
-      } catch {
-        setGenerateError(message);
-        setStep("upload");
-      }
+      setGenerateError(message);
+      setStep("upload");
     }
   }, [notes, photos]);
 
@@ -138,8 +125,6 @@ export default function Page() {
         : "https://www.kijiji.ca");
 
     const id = `listing-${Date.now().toString(36)}`;
-    const conversations = generateMockConversations(listing, connected);
-    const stats = mockStats();
 
     const postedSummary: ListingWithActivity = {
       id,
@@ -151,9 +136,9 @@ export default function Page() {
       listingUrl: primaryUrl,
       marketplaceUrls,
       postMessages,
-      views: stats.views,
-      saves: stats.saves,
-      conversations,
+      views: 0,
+      saves: 0,
+      conversations: [],
     };
 
     setListings((current) => [postedSummary, ...current]);

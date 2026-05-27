@@ -100,19 +100,6 @@ function formatExactTime(iso: string): string {
   });
 }
 
-const buyerConfirmReplies = [
-  "Perfect, see you then!",
-  "Sounds good — I'll be there.",
-  "Works for me, see you!",
-  "Great, looking forward to it.",
-];
-
-const buyerNegotiateReplies = [
-  "Okay deal — when can you meet?",
-  "Alright, that works. What's a good time to pick up?",
-  "Deal. Where do you want to meet?",
-];
-
 export default function InboxStep({
   listings,
   setListings,
@@ -255,46 +242,13 @@ export default function InboxStep({
           unread: 0,
         }));
 
-        if (payload.intent === "propose_meetup" && payload.meetup) {
-          const buyerReply = buyerConfirmReplies[
-            Math.floor(Math.random() * buyerConfirmReplies.length)
-          ] as string;
-          window.setTimeout(() => {
-            updateConversation(listingId, convoId, (current) => ({
-              ...current,
-              messages: [
-                ...current.messages,
-                {
-                  id: newId("msg"),
-                  sender: "buyer",
-                  content: buyerReply,
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-              lastMessageAt: new Date().toISOString(),
-              status: "meetup_scheduled",
-              meetup: payload.meetup ?? current.meetup,
-              unread: current.unread + 1,
-            }));
-          }, 1800);
-        } else if (payload.intent === "negotiate") {
-          const buyerReply = buyerNegotiateReplies[
-            Math.floor(Math.random() * buyerNegotiateReplies.length)
-          ] as string;
-          window.setTimeout(() => {
-            appendMessage(listingId, convoId, {
-              sender: "buyer",
-              content: buyerReply,
-            });
-          }, 2000);
-        }
       } catch (error) {
         console.error(error);
       } finally {
         setPending(convoId, false);
       }
     },
-    [appendMessage, setPending, updateConversation],
+    [setPending, updateConversation],
   );
 
   useEffect(() => {
@@ -593,13 +547,30 @@ function ListingDetailPane({
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
           Conversations
         </p>
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700">
-          <BotIcon className="h-3.5 w-3.5" />
-          Vendio AI active
-        </span>
+        {listing.conversations.length > 0 ? (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700">
+            <BotIcon className="h-3.5 w-3.5" />
+            Vendio AI active
+          </span>
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {listing.conversations.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <MessageIcon className="h-5 w-5" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-slate-900">No messages yet</p>
+            <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+              When a buyer reaches out on{" "}
+              {listing.marketplaces
+                .map((m) => (m === "facebook" ? "Facebook Marketplace" : "Kijiji"))
+                .join(" or ")}
+              , Vendio AI will reply automatically and the thread will appear here.
+            </p>
+          </div>
+        ) : null}
         {listing.conversations.map((convo) => {
           const isActive = convo.id === selectedConvoId;
           const last = convo.messages[convo.messages.length - 1];
