@@ -5,6 +5,7 @@ import type {
   ListingCategory,
   ListingCondition,
   ListingDraft,
+  MarketplacePostStatus,
   StoredImageRecord,
 } from "@/types/listing";
 
@@ -15,21 +16,25 @@ type FacebookPostInput = {
 
 type FacebookPostResult = {
   listingUrl?: string;
+  publishedUrl?: string;
   message: string;
+  status: MarketplacePostStatus;
+  fieldWarnings?: string[];
+  manualActionRequired?: boolean;
 };
 
 const createItemUrl = "https://www.facebook.com/marketplace/create/item";
 
 /** Facebook's category labels differ from Vendio's — try in order until one matches. */
 const facebookCategoryOptions: Record<ListingCategory, string[]> = {
-  Electronics: ["Electronics", "Computers", "Cell Phones"],
+  Electronics: ["Electronics", "Computers", "Cell Phones & Smart Watches", "Cell Phones"],
   Furniture: ["Furniture", "Home & Garden"],
-  "Home Goods": ["Home Goods", "Household", "Home & Garden", "Garden"],
-  Clothing: ["Clothing", "Apparel", "Clothing & Accessories"],
-  Collectibles: ["Collectibles", "Antiques & Collectibles", "Antiques"],
-  Sports: ["Sports & Outdoors", "Sporting Goods", "Sports"],
+  "Home Goods": ["Home Goods", "Household", "Home & Garden", "Garden", "Kitchen"],
+  Clothing: ["Apparel", "Clothing & Accessories", "Clothing", "Women's Clothing", "Men's Clothing"],
+  Collectibles: ["Collectibles", "Antiques & Collectibles", "Antiques", "Arts & Crafts"],
+  Sports: ["Sporting Goods", "Sports & Outdoors", "Sports"],
   Books: ["Books, Movies & Music", "Books", "Entertainment"],
-  Other: ["Other", "Miscellaneous", "Everything Else", "Free Stuff"],
+  Other: ["Miscellaneous", "Classifieds", "Free Stuff", "Other"],
 };
 
 const facebookConditionLabels: Record<ListingCondition, string[]> = {
@@ -120,34 +125,66 @@ async function fillTextField(page: Page, label: RegExp, value: string) {
   return false;
 }
 
-async function chooseOption(page: Page, label: RegExp, option: string) {
-  const control =
+async function findControl(page: Page, label: RegExp) {
+  return (
     (await firstVisible(page.getByLabel(label), 2_000)) ??
     (await firstVisible(page.getByRole("combobox", { name: label }), 2_000)) ??
-    (await firstVisible(page.getByText(label), 2_000));
+    (await firstVisible(page.getByText(label), 2_000))
+  );
+}
 
+async function escapeKeyIfOpen(page: Page) {
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.waitForTimeout(150);
+}
+
+/**
+ * Pick an option from a Facebook combobox. FB's category dropdown only shows a
+ * handful of suggested options up front (e.g. "Home & Garden, Tools, Furniture")
+ * — the option we actually want (e.g. "Apparel" or "Miscellaneous") often isn't
+ * in that initial list, so we type the option name to filter, then click the
+ * first matching item. Falls back to looking for the option without typing.
+ */
+async function chooseComboboxOption(page: Page, label: RegExp, option: string) {
+  const control = await findControl(page, label);
   if (!control) {
     return false;
   }
 
-  await control.click();
+  await control.click({ timeout: 3_000 }).catch(() => undefined);
+  await page.waitForTimeout(250);
 
   const escaped = option.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const optionLocator =
-    (await firstVisible(page.getByRole("option", { name: new RegExp(escaped, "i") }), 2_000)) ??
-    (await firstVisible(page.getByText(new RegExp(`^${escaped}$`, "i")), 2_000));
+  const directOption =
+    (await firstVisible(page.getByRole("option", { name: new RegExp(escaped, "i") }), 1_200)) ??
+    (await firstVisible(page.getByText(new RegExp(`^${escaped}$`, "i")), 1_200));
 
-  if (!optionLocator) {
-    return false;
+  if (directOption) {
+    await directOption.click({ timeout: 3_000 }).catch(() => undefined);
+    return true;
   }
 
-  await optionLocator.click();
-  return true;
+  // Type to filter — FB's combobox accepts keyboard input even when it looks like
+  // a plain dropdown. Typing the option name narrows the list.
+  await page.keyboard.type(option, { delay: 30 }).catch(() => undefined);
+  await page.waitForTimeout(400);
+
+  const filteredOption =
+    (await firstVisible(page.getByRole("option", { name: new RegExp(escaped, "i") }), 2_000)) ??
+    (await firstVisible(page.getByText(new RegExp(escaped, "i")), 2_000));
+
+  if (filteredOption) {
+    await filteredOption.click({ timeout: 3_000 }).catch(() => undefined);
+    return true;
+  }
+
+  await escapeKeyIfOpen(page);
+  return false;
 }
 
 async function chooseFirstMatchingOption(page: Page, label: RegExp, options: string[]) {
   for (const option of options) {
-    if (await chooseOption(page, label, option)) {
+    if (await chooseComboboxOption(page, label, option)) {
       return option;
     }
   }
@@ -258,7 +295,11 @@ export async function postToFacebookMarketplace({
     // Facebook often pre-fills location from the account profile.
   }
 
-  const nextResult = await clickWhenEnabled(page, /^next$/i);
+  // FB revalidates after the last field — give the React form a moment to
+  // notice that every required field is filled before polling Next.
+  await page.waitForTimeout(600);
+
+  const nextResult = await clickWhenEnabled(page, /^next$/i, { enabledTimeout: 12_000 });
 
   const manualNote =
     warnings.length > 0
@@ -268,23 +309,49 @@ export async function postToFacebookMarketplace({
   if (nextResult === "stayed-disabled") {
     return {
       listingUrl: page.url(),
-      message: `Facebook draft is open in the browser, but the Next button stayed disabled — at least one required field needs attention.${manualNote} Finish it manually and click Publish.`,
+      status: "needs_manual_review",
+      manualActionRequired: true,
+      fieldWarnings: warnings,
+      message: `Facebook is keeping Next disabled — a required field is still empty (${
+        warnings.length > 0 ? warnings.join(", ") : "likely category or condition"
+      }). The draft is open in the browser; finish that field and click Publish.`,
     };
   }
 
-  const publishResult = await clickWhenEnabled(page, /^(publish|post)$/i);
+  // After Next, FB shows a publishing-options step (audience, boost, etc.).
+  // Give it a moment to render before reaching for the Publish button.
+  await page.waitForTimeout(800);
+
+  const publishResult = await clickWhenEnabled(page, /^(publish|post)$/i, {
+    findTimeout: 6_000,
+    enabledTimeout: 12_000,
+  });
 
   if (publishResult !== "clicked") {
     return {
       listingUrl: page.url(),
+      status: "needs_manual_review",
+      manualActionRequired: true,
+      fieldWarnings: warnings,
       message: `Facebook draft is ready in the browser. Review and click Publish when it looks right.${manualNote}`,
     };
   }
 
   await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
 
+  // Confirm the post actually went through — FB navigates away from /create/item
+  // (to /you/selling or /marketplace/item/...) when publish succeeds.
+  const postUrl = page.url();
+  const published = !postUrl.includes("/create/item");
+
   return {
-    listingUrl: page.url(),
-    message: `Facebook accepted the publish action. Confirm the listing in the opened browser.${manualNote}`,
+    listingUrl: postUrl,
+    publishedUrl: published ? postUrl : undefined,
+    status: published ? "published" : "needs_manual_review",
+    manualActionRequired: !published,
+    fieldWarnings: warnings,
+    message: published
+      ? `Facebook published your listing.${manualNote}`
+      : `Facebook accepted the publish action but didn't navigate away. Verify the listing in the opened browser.${manualNote}`,
   };
 }

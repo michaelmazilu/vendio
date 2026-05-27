@@ -1,7 +1,13 @@
 import type { Locator, Page } from "playwright";
 
 import { getAutomationPage } from "@/lib/browser";
-import type { ListingCategory, ListingDraft, ListingCondition, StoredImageRecord } from "@/types/listing";
+import type {
+  ListingCategory,
+  ListingDraft,
+  ListingCondition,
+  MarketplacePostStatus,
+  StoredImageRecord,
+} from "@/types/listing";
 
 type KijijiPostInput = {
   listing: ListingDraft;
@@ -10,7 +16,10 @@ type KijijiPostInput = {
 
 type KijijiPostResult = {
   listingUrl?: string;
+  publishedUrl?: string;
   message: string;
+  status: MarketplacePostStatus;
+  manualActionRequired?: boolean;
 };
 
 const postAdUrl = "https://www.kijiji.ca/p-post-ad.html";
@@ -219,6 +228,8 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
   if (!titleStepAdvanced) {
     return {
       listingUrl: page.url(),
+      status: "needs_manual_review",
+      manualActionRequired: true,
       message:
         "Kijiji title is filled in the browser. Continue manually to category and details before posting.",
     };
@@ -238,6 +249,8 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
     const message = error instanceof Error ? error.message : "Could not choose a Kijiji category.";
     return {
       listingUrl: page.url(),
+      status: "needs_manual_review",
+      manualActionRequired: true,
       message: `${message} The title step is filled — finish category and details in the browser.`,
     };
   }
@@ -280,6 +293,8 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
   if (warnings.length > 0) {
     return {
       listingUrl: page.url(),
+      status: "needs_manual_review",
+      manualActionRequired: true,
       message: `Kijiji draft is open in the browser, but Vendio could not confidently fill every required field.${manualNote}`,
     };
   }
@@ -289,6 +304,8 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
   if (!published) {
     return {
       listingUrl: page.url(),
+      status: "needs_manual_review",
+      manualActionRequired: true,
       message:
         "Kijiji draft is filled in the browser. Review it there and click Post Your Ad if everything looks right.",
     };
@@ -296,8 +313,18 @@ export async function postToKijiji({ listing, images }: KijijiPostInput): Promis
 
   await page.waitForLoadState("domcontentloaded", { timeout: 20_000 }).catch(() => undefined);
 
+  // Kijiji bounces to /v-view-my-ads or the listing detail when posting succeeds;
+  // if we're still on /p-post-ad.html, the click didn't actually publish.
+  const postUrl = page.url();
+  const stillOnForm = /p-post-ad\.html/i.test(postUrl);
+
   return {
-    listingUrl: page.url(),
-    message: "Kijiji accepted the post action. Check the opened browser for the live listing.",
+    listingUrl: postUrl,
+    publishedUrl: stillOnForm ? undefined : postUrl,
+    status: stillOnForm ? "needs_manual_review" : "published",
+    manualActionRequired: stillOnForm,
+    message: stillOnForm
+      ? "Kijiji accepted the click but is still showing the form. Finish anything that's missing in the browser."
+      : "Kijiji posted your listing. Check the opened browser to confirm.",
   };
 }

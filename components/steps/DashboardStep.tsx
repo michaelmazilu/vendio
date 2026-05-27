@@ -10,7 +10,7 @@ import {
   SparkleIcon,
   UploadIcon,
 } from "@/components/Icons";
-import type { PostedListingSummary } from "@/types/app";
+import type { Marketplace, PostedListingSummary } from "@/types/app";
 
 type DashboardStepProps = {
   summary: PostedListingSummary;
@@ -18,11 +18,10 @@ type DashboardStepProps = {
   onViewListing: () => void;
 };
 
-const timelineLabels = [
+const baseTimelineLabels = [
   { label: "Photos uploaded", Icon: UploadIcon },
   { label: "Listing generated", Icon: SparkleIcon },
   { label: "Listing submitted", Icon: CheckCircleIcon },
-  { label: "Marketplace post live", Icon: RocketIcon },
 ];
 
 export default function DashboardStep({
@@ -37,6 +36,7 @@ export default function DashboardStep({
     photoUrls,
     marketplaceUrls,
     postMessages,
+    marketplaceStatuses,
     postedAt,
   } = summary;
 
@@ -48,24 +48,49 @@ export default function DashboardStep({
     minute: "2-digit",
   });
 
+  const marketplaceLabel = (m: Marketplace) => (m === "facebook" ? "Facebook Marketplace" : "Kijiji");
+  const liveMarketplaces = marketplaces.filter((m) => marketplaceStatuses[m] === "published");
+  const draftMarketplaces = marketplaces.filter((m) => marketplaceStatuses[m] !== "published");
+  const allLive = draftMarketplaces.length === 0;
+  const allDraft = liveMarketplaces.length === 0;
+
+  const bannerTone = allLive
+    ? "border-emerald-100 bg-emerald-50/60 text-emerald-700"
+    : allDraft
+      ? "border-amber-100 bg-amber-50/70 text-amber-800"
+      : "border-amber-100 bg-amber-50/70 text-amber-800";
+  const bannerIconTone = allLive
+    ? "text-emerald-600 ring-emerald-100"
+    : "text-amber-600 ring-amber-100";
+  const bannerTitle = allLive
+    ? "Your listing is live"
+    : allDraft
+      ? "Draft is open in the browser"
+      : "Partially live";
+  const bannerBody = allLive
+    ? `Vendio published to ${liveMarketplaces.map(marketplaceLabel).join(" and ")}. Buyers can find it now.`
+    : allDraft
+      ? `Vendio filled the form on ${draftMarketplaces
+          .map(marketplaceLabel)
+          .join(" and ")} but couldn't auto-publish. Open the tab below to review and click Publish.`
+      : `Live on ${liveMarketplaces
+          .map(marketplaceLabel)
+          .join(" and ")}. Still a draft on ${draftMarketplaces
+          .map(marketplaceLabel)
+          .join(" and ")} — open it to finish.`;
+
   return (
     <div className="vendio-step-enter mx-auto max-w-5xl px-6 pt-12 pb-20">
-      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5 shadow-sm">
+      <div className={`rounded-2xl border p-5 shadow-sm ${bannerTone}`}>
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100">
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ${bannerIconTone}`}
+          >
             <CheckCircleIcon className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-emerald-800">Your listing is live</p>
-            <p className="mt-0.5 text-sm text-emerald-700">
-              Vendio successfully posted to{" "}
-              {marketplaces.length === 2
-                ? "Facebook Marketplace and Kijiji"
-                : marketplaces[0] === "facebook"
-                  ? "Facebook Marketplace"
-                  : "Kijiji"}
-              . Buyers can find it now.
-            </p>
+            <p className="text-sm font-semibold">{bannerTitle}</p>
+            <p className="mt-0.5 text-sm">{bannerBody}</p>
           </div>
         </div>
       </div>
@@ -98,10 +123,17 @@ export default function DashboardStep({
           <div className="px-6 py-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Live
-                </span>
+                {allLive ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Live
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Draft pending
+                  </span>
+                )}
                 <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-slate-900">
                   {listing.title}
                 </h1>
@@ -172,6 +204,7 @@ export default function DashboardStep({
               {marketplaces.map((marketplace) => {
                 const url = marketplaceUrls[marketplace];
                 const message = postMessages[marketplace];
+                const isLive = marketplaceStatuses[marketplace] === "published";
 
                 return (
                   <li key={marketplace} className="flex items-center justify-between gap-3">
@@ -187,10 +220,23 @@ export default function DashboardStep({
                       )}
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900">
-                          {marketplace === "facebook" ? "Facebook Marketplace" : "Kijiji"}
+                          {marketplaceLabel(marketplace)}
                         </p>
-                        <p className="truncate text-xs text-slate-500">
-                          {message ?? `Posted ${dateLabel}`}
+                        <p className="flex items-center gap-1.5 text-xs">
+                          {isLive ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              Live
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              Draft pending
+                            </span>
+                          )}
+                          <span className="truncate text-slate-500">
+                            · {message ?? `Posted ${dateLabel}`}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -203,12 +249,7 @@ export default function DashboardStep({
                       >
                         Open
                       </a>
-                    ) : (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        Live
-                      </span>
-                    )}
+                    ) : null}
                   </li>
                 );
               })}
@@ -220,14 +261,26 @@ export default function DashboardStep({
               Activity
             </p>
             <ol className="mt-5 space-y-5">
-              {timelineLabels.map((event, index) => {
+              {[
+                ...baseTimelineLabels,
+                {
+                  label: allLive ? "Marketplace post live" : "Awaiting publish in browser",
+                  Icon: RocketIcon,
+                  pending: !allLive,
+                },
+              ].map((event, index, array) => {
                 const Icon = event.Icon;
+                const isPending = "pending" in event && event.pending;
                 return (
                   <li key={event.label} className="relative flex gap-3">
-                    {index < timelineLabels.length - 1 ? (
+                    {index < array.length - 1 ? (
                       <span className="absolute left-3.5 top-7 h-[calc(100%-0.25rem)] w-px bg-slate-200" />
                     ) : null}
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white ${
+                        isPending ? "bg-amber-500" : "bg-indigo-600"
+                      }`}
+                    >
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <div>

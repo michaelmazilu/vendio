@@ -57,7 +57,9 @@ export async function POST(request: Request) {
       const response: PostListingResponse = {
         success: true,
         marketplace: "mock",
+        status: "published",
         listingUrl,
+        publishedUrl: listingUrl,
         message: "Posted to the local mock marketplace.",
         listing,
       };
@@ -82,7 +84,10 @@ export async function POST(request: Request) {
       const response: PostListingResponse = {
         success: true,
         marketplace: "kijiji",
+        status: result.status,
         listingUrl: result.listingUrl,
+        publishedUrl: result.publishedUrl,
+        manualActionRequired: result.manualActionRequired,
         message: result.message,
         listing,
       };
@@ -106,7 +111,11 @@ export async function POST(request: Request) {
     const response: PostListingResponse = {
       success: true,
       marketplace: "facebook",
+      status: result.status,
       listingUrl: result.listingUrl,
+      publishedUrl: result.publishedUrl,
+      fieldWarnings: result.fieldWarnings,
+      manualActionRequired: result.manualActionRequired,
       message: result.message,
       listing,
     };
