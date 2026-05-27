@@ -25,6 +25,13 @@ export type GeneratedListing = {
   price: number;
   category: ListingCategory;
   condition: ListingCondition;
+  location: string;
+};
+
+export type MarketplacePostResult = {
+  marketplace: Marketplace;
+  listingUrl?: string;
+  message: string;
 };
 
 export type PostedListingSummary = {
@@ -35,4 +42,6 @@ export type PostedListingSummary = {
   photoUrls: string[];
   postedAt: string;
   listingUrl: string;
+  marketplaceUrls: Partial<Record<Marketplace, string>>;
+  postMessages: Partial<Record<Marketplace, string>>;
 };

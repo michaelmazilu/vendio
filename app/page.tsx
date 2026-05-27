@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Navbar from "@/components/Navbar";
 import Stepper from "@/components/Stepper";
@@ -11,11 +11,13 @@ import HomeStep from "@/components/steps/HomeStep";
 import PostingStep from "@/components/steps/PostingStep";
 import ReviewStep from "@/components/steps/ReviewStep";
 import UploadStep from "@/components/steps/UploadStep";
+import { generateListingFromPhotos } from "@/lib/client/marketplaceFlow";
 import { generateMockListing } from "@/lib/mockListing";
 import type {
   AppStep,
   GeneratedListing,
   Marketplace,
+  MarketplacePostResult,
   PostedListingSummary,
   UploadedPhoto,
 } from "@/types/app";
@@ -42,7 +44,10 @@ export default function Page() {
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [notes, setNotes] = useState("");
   const [listing, setListing] = useState<GeneratedListing | null>(null);
+  const [storedImageIds, setStoredImageIds] = useState<string[]>([]);
   const [summary, setSummary] = useState<PostedListingSummary | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [postError, setPostError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -68,40 +73,89 @@ export default function Page() {
     setPhotos([]);
     setNotes("");
     setListing(null);
+    setStoredImageIds([]);
     setSummary(null);
+    setGenerateError(null);
+    setPostError(null);
     setStep("upload");
   }
 
-  function startGeneration() {
-    const draft = generateMockListing(notes);
-    setListing(draft);
+  const runGeneration = useCallback(async () => {
+    setGenerateError(null);
     setStep("generating");
+
+    try {
+      const generated = await generateListingFromPhotos({
+        photos: photos.map((photo) => photo.file),
+        notes,
+      });
+      setListing(generated.listing);
+      setStoredImageIds(generated.imageIds);
+      setStep("review");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not generate listing from your photos.";
+
+      try {
+        const fallback = generateMockListing(notes);
+        setListing(fallback);
+        setStoredImageIds([]);
+        setGenerateError(
+          `${message} Showing an offline draft — connect Playwright and retry for real posting.`,
+        );
+        setStep("review");
+      } catch {
+        setGenerateError(message);
+        setStep("upload");
+      }
+    }
+  }, [notes, photos]);
+
+  function startGeneration() {
+    void runGeneration();
   }
 
-  function finishPosting() {
+  function finishPosting(results: MarketplacePostResult[]) {
     if (!listing) {
       return;
     }
 
-    const id = `listing-${Date.now().toString(36)}`;
+    const marketplaceUrls = Object.fromEntries(
+      results
+        .filter((result) => result.listingUrl)
+        .map((result) => [result.marketplace, result.listingUrl!]),
+    ) as Partial<Record<Marketplace, string>>;
+
+    const postMessages = Object.fromEntries(
+      results.map((result) => [result.marketplace, result.message]),
+    ) as Partial<Record<Marketplace, string>>;
+
+    const primaryUrl =
+      results.find((result) => result.listingUrl)?.listingUrl ??
+      (connected[0] === "facebook"
+        ? "https://www.facebook.com/marketplace"
+        : "https://www.kijiji.ca");
+
     const postedSummary: PostedListingSummary = {
-      id,
+      id: `listing-${Date.now().toString(36)}`,
       listing,
       marketplaces: [...connected],
       primaryPhotoUrl: photos[0]?.previewUrl ?? "",
       photoUrls: photos.map((photo) => photo.previewUrl),
       postedAt: new Date().toISOString(),
-      listingUrl:
-        connected[0] === "facebook"
-          ? `https://www.facebook.com/marketplace/item/${id}`
-          : `https://www.kijiji.ca/v-${id}`,
+      listingUrl: primaryUrl,
+      marketplaceUrls,
+      postMessages,
     };
+
     setSummary(postedSummary);
+    setPostError(null);
     setStep("dashboard");
   }
 
   const flowIndex = useMemo(() => stepToFlowIndex[step], [step]);
   const showStepper = flowIndex !== undefined && step !== "home";
+  const canPost = storedImageIds.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -139,9 +193,7 @@ export default function Page() {
           />
         ) : null}
 
-        {step === "generating" ? (
-          <GeneratingStep onComplete={() => setStep("review")} />
-        ) : null}
+        {step === "generating" ? <GeneratingStep error={generateError} /> : null}
 
         {step === "review" && listing ? (
           <ReviewStep
@@ -149,13 +201,35 @@ export default function Page() {
             photos={photos}
             marketplaces={connected}
             onChange={setListing}
-            onSubmit={() => setStep("posting")}
+            onSubmit={() => {
+              if (!canPost) {
+                return;
+              }
+              setPostError(null);
+              setStep("posting");
+            }}
             onBack={() => setStep("upload")}
+            postBlockedMessage={
+              postError ??
+              (!canPost
+                ? "Photos were not saved on the server. Go back and generate again before posting."
+                : null)
+            }
+            generateWarning={generateError}
           />
         ) : null}
 
-        {step === "posting" ? (
-          <PostingStep marketplaces={connected} onComplete={finishPosting} />
+        {step === "posting" && listing && canPost ? (
+          <PostingStep
+            marketplaces={connected}
+            listing={listing}
+            imageIds={storedImageIds}
+            onComplete={finishPosting}
+            onError={(message) => {
+              setPostError(message);
+              setStep("review");
+            }}
+          />
         ) : null}
 
         {step === "dashboard" && summary ? (

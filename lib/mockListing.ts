@@ -91,5 +91,6 @@ export function generateMockListing(notes: string): GeneratedListing {
     price,
     category: category ?? LISTING_CATEGORIES[LISTING_CATEGORIES.length - 1],
     condition,
+    location: "Toronto, ON",
   };
 }

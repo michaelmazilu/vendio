@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { CheckIcon, SparkleIcon } from "@/components/Icons";
 
 type GeneratingStepProps = {
-  onComplete: () => void;
+  error?: string | null;
 };
 
 const stages = [
@@ -15,25 +15,22 @@ const stages = [
   "Preparing marketplace details...",
 ];
 
-const stageDuration = 1100;
+const stageDuration = 900;
 
-export default function GeneratingStep({ onComplete }: GeneratingStepProps) {
+export default function GeneratingStep({ error }: GeneratingStepProps) {
   const [activeStage, setActiveStage] = useState(0);
 
   useEffect(() => {
+    if (error) {
+      return;
+    }
+
     const interval = setInterval(() => {
-      setActiveStage((current) => {
-        if (current >= stages.length - 1) {
-          clearInterval(interval);
-          window.setTimeout(onComplete, stageDuration);
-          return current;
-        }
-        return current + 1;
-      });
+      setActiveStage((current) => (current >= stages.length - 1 ? current : current + 1));
     }, stageDuration);
 
     return () => clearInterval(interval);
-  }, [onComplete]);
+  }, [error]);
 
   return (
     <div className="vendio-step-enter mx-auto flex min-h-[calc(100vh-4rem)] max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
@@ -47,13 +44,21 @@ export default function GeneratingStep({ onComplete }: GeneratingStepProps) {
         Vendio is working its magic
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        This usually takes about 10 seconds. Stay on this page.
+        {error
+          ? "Something went wrong while generating your listing."
+          : "Uploading photos and drafting your listing. Stay on this page."}
       </p>
+
+      {error ? (
+        <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </p>
+      ) : null}
 
       <ol className="mt-10 w-full space-y-3 text-left">
         {stages.map((label, index) => {
           const isDone = index < activeStage;
-          const isActive = index === activeStage;
+          const isActive = index === activeStage && !error;
 
           return (
             <li

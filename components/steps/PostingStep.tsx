@@ -8,11 +8,19 @@ import {
   KijijiIcon,
   RocketIcon,
 } from "@/components/Icons";
-import type { Marketplace } from "@/types/app";
+import { postListingToMarketplace } from "@/lib/client/marketplaceFlow";
+import type {
+  GeneratedListing,
+  Marketplace,
+  MarketplacePostResult,
+} from "@/types/app";
 
 type PostingStepProps = {
   marketplaces: Marketplace[];
-  onComplete: () => void;
+  listing: GeneratedListing;
+  imageIds: string[];
+  onComplete: (results: MarketplacePostResult[]) => void;
+  onError: (message: string) => void;
 };
 
 const stages = [
@@ -23,25 +31,59 @@ const stages = [
   "Publishing listing...",
 ];
 
-const stageDuration = 950;
-
-export default function PostingStep({ marketplaces, onComplete }: PostingStepProps) {
+export default function PostingStep({
+  marketplaces,
+  listing,
+  imageIds,
+  onComplete,
+  onError,
+}: PostingStepProps) {
   const [activeStage, setActiveStage] = useState(0);
+  const [activeMarketplace, setActiveMarketplace] = useState<Marketplace | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveStage((current) => {
-        if (current >= stages.length - 1) {
-          clearInterval(interval);
-          window.setTimeout(onComplete, stageDuration);
-          return current;
-        }
-        return current + 1;
-      });
-    }, stageDuration);
+    let cancelled = false;
 
-    return () => clearInterval(interval);
-  }, [onComplete]);
+    async function run() {
+      const results: MarketplacePostResult[] = [];
+
+      try {
+        for (let index = 0; index < marketplaces.length; index += 1) {
+          if (cancelled) {
+            return;
+          }
+
+          const marketplace = marketplaces[index]!;
+          setActiveMarketplace(marketplace);
+          setActiveStage(Math.min(stages.length - 1, 1 + index * 2));
+
+          const result = await postListingToMarketplace({
+            marketplace,
+            listing,
+            imageIds,
+          });
+          results.push(result);
+
+          setActiveStage(Math.min(stages.length - 1, 2 + index * 2));
+        }
+
+        setActiveStage(stages.length - 1);
+        if (!cancelled) {
+          onComplete(results);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          onError(error instanceof Error ? error.message : "Could not post listing.");
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [marketplaces, listing, imageIds, onComplete, onError]);
 
   const progress = Math.min(1, (activeStage + 1) / stages.length);
 
@@ -63,6 +105,15 @@ export default function PostingStep({ marketplaces, onComplete }: PostingStepPro
               ? "Facebook Marketplace"
               : "Kijiji"}
         </span>
+        {activeMarketplace ? (
+          <>
+            {" "}
+            — now on{" "}
+            <span className="font-medium text-slate-900">
+              {activeMarketplace === "facebook" ? "Facebook" : "Kijiji"}
+            </span>
+          </>
+        ) : null}
         .
       </p>
 

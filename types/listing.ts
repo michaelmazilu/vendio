@@ -52,7 +52,7 @@ export type GenerateListingResponse = {
 
 export type PostListingResponse = {
   success: true;
-  marketplace: "facebook" | "mock";
+  marketplace: "facebook" | "kijiji" | "mock";
   listingUrl?: string;
   message: string;
   listing: ListingDraft;

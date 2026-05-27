@@ -22,25 +22,25 @@ npm run dev
 Open `http://localhost:3000` and walk through the full flow:
 
 1. **Home** — hero, how-it-works, benefits, and a single "Get Started" CTA.
-2. **Connect Marketplace** — visually connect Kijiji and/or Facebook Marketplace (demo UI only).
+2. **Connect Marketplace** — open a persistent browser session for Kijiji and/or Facebook Marketplace.
 3. **Upload Photos** — drag-and-drop up to 8 photos and add optional notes.
-4. **Generating** — calm, animated loading state while Vendio "writes" the listing.
+4. **Generating** — uploads photos to the server and drafts the listing (OpenAI when configured).
 5. **Review** — generated listing rendered read-only by default; toggle Edit to tweak title, description, price, category, or condition.
 6. **Posting** — animated progress with marketplace-specific status messages.
 7. **Dashboard** — live listing card, status pills, marketplace list, activity timeline, and `View Listing` / `Create Another Listing` actions.
 
-No login, no database, no payment system — everything is mocked client-side so the demo always works.
+No login, no database, no payment system. Listing drafts and uploads are stored locally under `.vendio/`.
 
-## Optional: real Facebook Marketplace automation
+## Marketplace automation (Playwright)
 
-The repo also ships an experimental Playwright-based Facebook adapter and persistent browser profile under `.vendio/facebook-profile`. To try it:
+Vendio uses Playwright with persistent browser profiles (`.vendio/facebook-profile`, `.vendio/kijiji-profile`) to fill marketplace forms on your machine. You log in manually in the opened browser; Vendio never stores credentials.
 
 ```bash
 npx playwright install chromium
 export OPENAI_API_KEY="..."   # optional, enables real description generation
 ```
 
-Hit `/api/facebook/connect`, `/api/generate-listing`, or `/api/post-listing` directly. The default UI does not call these endpoints — it runs entirely on the client so the demo stays smooth and predictable.
+Connect step calls `/api/facebook/connect` or `/api/kijiji/connect`. Posting calls `/api/post-listing` with `target: "facebook"` or `target: "kijiji"`.
 
 ## Checks
 

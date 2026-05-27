@@ -10,6 +10,7 @@ import {
   KijijiIcon,
   ShieldIcon,
 } from "@/components/Icons";
+import { connectMarketplace, disconnectMarketplace } from "@/lib/client/marketplaceFlow";
 import type { Marketplace } from "@/types/app";
 
 type ConnectStepProps = {
@@ -31,7 +32,8 @@ const options: Option[] = [
   {
     id: "facebook",
     name: "Facebook Marketplace",
-    description: "Reach buyers in your local community and across nearby cities.",
+    description:
+      "Opens a browser window — sign in to Facebook (you have about 2 minutes). Session stays on your device.",
     Icon: FacebookIcon,
     accent: "bg-[#1877F2]/10 text-[#1877F2]",
   },
@@ -51,17 +53,36 @@ export default function ConnectStep({
   onBack,
 }: ConnectStepProps) {
   const [connectingId, setConnectingId] = useState<Marketplace | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   async function handleConnect(marketplace: Marketplace) {
     if (connected.includes(marketplace)) {
+      setConnectError(null);
+      try {
+        await disconnectMarketplace(marketplace);
+      } catch (error) {
+        setConnectError(
+          error instanceof Error ? error.message : `Could not disconnect ${marketplace}.`,
+        );
+        return;
+      }
       onToggle(marketplace);
       return;
     }
 
     setConnectingId(marketplace);
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    onToggle(marketplace);
-    setConnectingId(null);
+    setConnectError(null);
+
+    try {
+      await connectMarketplace(marketplace);
+      onToggle(marketplace);
+    } catch (error) {
+      setConnectError(
+        error instanceof Error ? error.message : `Could not connect ${marketplace}.`,
+      );
+    } finally {
+      setConnectingId(null);
+    }
   }
 
   const canContinue = connected.length > 0;
@@ -127,9 +148,16 @@ export default function ConnectStep({
                     Connected
                   </span>
                 ) : isConnecting ? (
-                  <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <span className="vendio-spinner h-4 w-4 rounded-full border-2 border-slate-200 border-t-indigo-600" />
-                    Connecting...
+                  <span className="inline-flex max-w-[11rem] flex-col items-end gap-0.5 text-right text-xs font-medium text-slate-500">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="vendio-spinner h-4 w-4 rounded-full border-2 border-slate-200 border-t-indigo-600" />
+                      Connecting...
+                    </span>
+                    {option.id === "facebook" ? (
+                      <span className="text-[10px] leading-tight text-slate-400">
+                        Sign in in the browser
+                      </span>
+                    ) : null}
                   </span>
                 ) : (
                   <span className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition group-hover:border-indigo-300 group-hover:bg-indigo-50 group-hover:text-indigo-700">
@@ -141,6 +169,12 @@ export default function ConnectStep({
           );
         })}
       </div>
+
+      {connectError ? (
+        <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {connectError}
+        </p>
+      ) : null}
 
       <div className="mt-8 flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">

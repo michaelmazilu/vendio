@@ -27,6 +27,8 @@ type ReviewStepProps = {
   onChange: (listing: GeneratedListing) => void;
   onSubmit: () => void;
   onBack: () => void;
+  postBlockedMessage?: string | null;
+  generateWarning?: string | null;
 };
 
 const inputClass =
@@ -39,6 +41,8 @@ export default function ReviewStep({
   onChange,
   onSubmit,
   onBack,
+  postBlockedMessage,
+  generateWarning,
 }: ReviewStepProps) {
   const [isEditing, setIsEditing] = useState(false);
   const primaryPhoto = photos[0];
@@ -65,6 +69,11 @@ export default function ReviewStep({
         <p className="text-base text-slate-600">
           Vendio drafted everything below. Approve it as-is, or tap Edit to make changes.
         </p>
+        {generateWarning ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {generateWarning}
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
@@ -174,6 +183,18 @@ export default function ReviewStep({
               )}
             </Field>
 
+            <Field label="Location">
+              {isEditing ? (
+                <input
+                  className={inputClass}
+                  value={listing.location}
+                  onChange={(event) => onChange({ ...listing, location: event.target.value })}
+                />
+              ) : (
+                <p className="text-base font-medium text-slate-900">{listing.location}</p>
+              )}
+            </Field>
+
             <Field label="Description">
               {isEditing ? (
                 <textarea
@@ -269,16 +290,23 @@ export default function ReviewStep({
             </ul>
           </div>
 
+          {postBlockedMessage ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {postBlockedMessage}
+            </p>
+          ) : null}
+
           <button
             type="button"
             onClick={onSubmit}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            disabled={Boolean(postBlockedMessage)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <RocketIcon className="h-4 w-4" />
             Submit Listing
           </button>
           <p className="text-center text-xs text-slate-500">
-            Vendio will fill the marketplace forms and publish on your behalf.
+            Vendio opens a browser on your device and fills Kijiji and Facebook forms for you.
           </p>
         </aside>
       </div>

@@ -25,7 +25,16 @@ const timelineLabels = [
 ];
 
 export default function DashboardStep({ summary, onCreateAnother }: DashboardStepProps) {
-  const { listing, marketplaces, primaryPhotoUrl, photoUrls, listingUrl, postedAt } = summary;
+  const {
+    listing,
+    marketplaces,
+    primaryPhotoUrl,
+    photoUrls,
+    listingUrl,
+    marketplaceUrls,
+    postMessages,
+    postedAt,
+  } = summary;
 
   const postedDate = new Date(postedAt);
   const dateLabel = postedDate.toLocaleString(undefined, {
@@ -157,31 +166,49 @@ export default function DashboardStep({ summary, onCreateAnother }: DashboardSte
               Marketplaces
             </p>
             <ul className="mt-4 space-y-3">
-              {marketplaces.map((marketplace) => (
-                <li key={marketplace} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {marketplace === "facebook" ? (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1877F2]/10 text-[#1877F2]">
-                        <FacebookIcon className="h-4 w-4" />
-                      </span>
+              {marketplaces.map((marketplace) => {
+                const url = marketplaceUrls[marketplace];
+                const message = postMessages[marketplace];
+
+                return (
+                  <li key={marketplace} className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {marketplace === "facebook" ? (
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1877F2]/10 text-[#1877F2]">
+                          <FacebookIcon className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                          <KijijiIcon className="h-4 w-4" />
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900">
+                          {marketplace === "facebook" ? "Facebook Marketplace" : "Kijiji"}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {message ?? `Posted ${dateLabel}`}
+                        </p>
+                      </div>
+                    </div>
+                    {url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                      >
+                        Open
+                      </a>
                     ) : (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                        <KijijiIcon className="h-4 w-4" />
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Live
                       </span>
                     )}
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">
-                        {marketplace === "facebook" ? "Facebook Marketplace" : "Kijiji"}
-                      </p>
-                      <p className="text-xs text-slate-500">Posted {dateLabel}</p>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Live
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
