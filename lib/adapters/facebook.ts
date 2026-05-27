@@ -91,10 +91,29 @@ async function fillTextField(page: Page, label: RegExp, value: string) {
 
   for (const candidate of candidates) {
     try {
+      await candidate.click({ timeout: 2_000 }).catch(() => undefined);
+      await candidate.fill("", { timeout: 2_000 }).catch(() => undefined);
       await candidate.fill(value, { timeout: 4_000 });
+      // FB's React forms only update validation state when a real key event fires;
+      // a no-op End keypress nudges them without changing the value.
+      await candidate.press("End", { timeout: 1_000 }).catch(() => undefined);
       return true;
     } catch {
       // Facebook labels change frequently, so try the next accessible selector.
+    }
+  }
+
+  // Description on FB is often a contenteditable <div>, not a labelled textbox.
+  if (/description/i.test(label.source)) {
+    const editable = page.locator('[contenteditable="true"]').first();
+    try {
+      await editable.click({ timeout: 2_000 });
+      await page.keyboard.press("Control+A").catch(() => undefined);
+      await page.keyboard.press("Delete").catch(() => undefined);
+      await page.keyboard.type(value, { delay: 5 });
+      return true;
+    } catch {
+      // give up, the caller will record this as a warning
     }
   }
 
@@ -144,14 +163,38 @@ async function uploadPhotos(page: Page, images: StoredImageRecord[]) {
   );
 }
 
-async function clickOptionalButton(page: Page, name: RegExp) {
-  const button = await firstVisible(page.getByRole("button", { name }), 3_000);
+/**
+ * Click a Facebook button only if it becomes enabled within the wait window.
+ * FB's submit buttons are <div role="button" aria-disabled="true"> until every
+ * required field is satisfied; Playwright's default .click() then blocks 30s
+ * waiting for "enabled" and throws. We poll aria-disabled / disabled instead
+ * and bail out fast so the caller can return a "draft ready" message.
+ */
+async function clickWhenEnabled(
+  page: Page,
+  name: RegExp,
+  { findTimeout = 4_000, enabledTimeout = 6_000 }: { findTimeout?: number; enabledTimeout?: number } = {},
+): Promise<"clicked" | "stayed-disabled" | "not-found"> {
+  const button = await firstVisible(page.getByRole("button", { name }), findTimeout);
   if (!button) {
-    return false;
+    return "not-found";
   }
 
-  await button.click();
-  return true;
+  const deadline = Date.now() + enabledTimeout;
+  while (Date.now() < deadline) {
+    const ariaDisabled = await button.getAttribute("aria-disabled").catch(() => null);
+    const nativeDisabled = await button.getAttribute("disabled").catch(() => null);
+    const isDisabled = ariaDisabled === "true" || nativeDisabled !== null;
+
+    if (!isDisabled) {
+      await button.click({ timeout: 4_000 }).catch(() => undefined);
+      return "clicked";
+    }
+
+    await page.waitForTimeout(300);
+  }
+
+  return "stayed-disabled";
 }
 
 function formatManualNote(warnings: string[]) {
@@ -221,18 +264,23 @@ export async function postToFacebookMarketplace({
     // Facebook often pre-fills location from the account profile.
   }
 
-  const manualNote = formatManualNote(warnings);
+  const nextResult = await clickWhenEnabled(page, /^next$/i);
 
-  if (warnings.length > 0) {
+  const manualNote =
+    warnings.length > 0
+      ? ` Finish ${warnings.join(", ")} manually in the browser if needed.`
+      : "";
+
+  if (nextResult === "stayed-disabled") {
     return {
       listingUrl: page.url(),
-      message: `Facebook draft is open in the browser, but Vendio could not confidently fill every required field.${manualNote}`,
+      message: `Facebook draft is open in the browser, but the Next button stayed disabled — at least one required field needs attention.${manualNote} Finish it manually and click Publish.`,
     };
   }
 
-  await clickOptionalButton(page, /^next$/i);
-  const published = await clickOptionalButton(page, /^(publish|post)$/i);
-  if (!published) {
+  const publishResult = await clickWhenEnabled(page, /^(publish|post)$/i);
+
+  if (publishResult !== "clicked") {
     return {
       listingUrl: page.url(),
       message: `Facebook draft is ready in the browser. Review and click Publish when it looks right.${manualNote}`,
