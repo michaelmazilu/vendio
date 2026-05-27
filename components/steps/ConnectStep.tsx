@@ -35,7 +35,7 @@ const options: Option[] = [
     description:
       "Opens a browser window — sign in to Facebook (you have about 2 minutes). Session stays on your device.",
     Icon: FacebookIcon,
-    accent: "bg-[#1877F2]/10 text-[#1877F2]",
+    accent: "bg-blue-50 text-blue-800",
   },
   {
     id: "kijiji",
@@ -43,7 +43,7 @@ const options: Option[] = [
     description:
       "Opens kijiji.ca — click Register or Sign In in the browser (about 2 minutes). Session stays on your device.",
     Icon: KijijiIcon,
-    accent: "bg-emerald-50 text-emerald-700",
+    accent: "bg-slate-100 text-slate-800",
   },
 ];
 
@@ -100,10 +100,10 @@ export default function ConnectStep({
       </button>
 
       <div className="mt-8 text-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-600">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
           Step 1 of 4
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
           Connect your marketplaces
         </h1>
         <p className="mx-auto mt-3 max-w-lg text-base text-slate-600">
@@ -126,8 +126,8 @@ export default function ConnectStep({
               disabled={isConnecting}
               className={`group flex items-center justify-between gap-4 rounded-2xl border bg-white p-5 text-left shadow-sm transition disabled:cursor-not-allowed ${
                 isConnected
-                  ? "border-indigo-200 ring-1 ring-indigo-200"
-                  : "border-slate-200 hover:border-slate-300 hover:shadow"
+                  ? "border-blue-900 ring-1 ring-blue-900"
+                  : "border-slate-200 hover:border-slate-400 hover:shadow"
               }`}
             >
               <div className="flex items-center gap-4">
@@ -137,21 +137,21 @@ export default function ConnectStep({
                   <Icon className="h-6 w-6" />
                 </span>
                 <div>
-                  <p className="text-base font-semibold text-slate-900">{option.name}</p>
+                  <p className="text-base font-semibold text-slate-950">{option.name}</p>
                   <p className="mt-0.5 text-sm text-slate-600">{option.description}</p>
                 </div>
               </div>
 
               <div className="shrink-0">
                 {isConnected ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white">
                     <CheckCircleIcon className="h-4 w-4" />
                     Connected
                   </span>
                 ) : isConnecting ? (
                   <span className="inline-flex max-w-[11rem] flex-col items-end gap-0.5 text-right text-xs font-medium text-slate-500">
                     <span className="inline-flex items-center gap-2">
-                      <span className="vendio-spinner h-4 w-4 rounded-full border-2 border-slate-200 border-t-indigo-600" />
+                      <span className="vendio-spinner h-4 w-4 rounded-full border-2 border-slate-200 border-t-blue-800" />
                       Connecting...
                     </span>
                     {option.id === "facebook" || option.id === "kijiji" ? (
@@ -161,8 +161,8 @@ export default function ConnectStep({
                     ) : null}
                   </span>
                 ) : (
-                  <span className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition group-hover:border-indigo-300 group-hover:bg-indigo-50 group-hover:text-indigo-700">
-                    Connect
+                  <span className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-900">
+                    Select
                   </span>
                 )}
               </div>
@@ -197,7 +197,7 @@ export default function ConnectStep({
           type="button"
           onClick={onContinue}
           disabled={!canContinue}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Continue
           <ArrowRightIcon className="h-4 w-4" />

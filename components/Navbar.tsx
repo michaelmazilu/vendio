@@ -27,7 +27,7 @@ export default function Navbar({
         <InboxIcon className="h-4 w-4" />
         Inbox
         {totalUnread > 0 ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-semibold text-white">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-800 px-1.5 text-[10px] font-semibold text-white">
             {totalUnread}
           </span>
         ) : null}
@@ -40,9 +40,9 @@ export default function Navbar({
         <button
           type="button"
           onClick={onHome}
-          className="group flex items-center gap-2.5 text-slate-900 transition hover:text-indigo-600"
+          className="group flex items-center gap-2.5 text-slate-950 transition hover:text-blue-800"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition group-hover:bg-indigo-700">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white shadow-sm transition group-hover:bg-blue-950">
             <SparkleIcon className="h-5 w-5" />
           </span>
           <span className="text-lg font-semibold tracking-tight">Vendio</span>
@@ -50,24 +50,16 @@ export default function Navbar({
 
         {isHome ? (
           <nav className="flex items-center gap-3 text-sm font-medium text-slate-600 sm:gap-7">
+            <a className="hidden transition hover:text-slate-900 sm:inline" href="#product">
+              Product
+            </a>
             <a className="hidden transition hover:text-slate-900 sm:inline" href="#how-it-works">
               How it works
             </a>
             <a className="hidden transition hover:text-slate-900 sm:inline" href="#benefits">
-              Why Vendio
+              Control
             </a>
             {inboxButton}
-            <a
-              className="rounded-lg bg-slate-900 px-3.5 py-2 text-white transition hover:bg-slate-800"
-              href="#get-started"
-              onClick={(event) => {
-                event.preventDefault();
-                const target = document.getElementById("get-started");
-                target?.scrollIntoView({ behavior: "smooth" });
-              }}
-            >
-              Get Started
-            </a>
           </nav>
         ) : (
           <nav className="flex items-center gap-3 text-sm font-medium text-slate-600">

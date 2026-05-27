@@ -25,9 +25,9 @@ export default function Stepper({ steps, currentIndex }: StepperProps) {
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
                   isComplete
-                    ? "border-indigo-600 bg-indigo-600 text-white"
+                    ? "border-slate-950 bg-slate-950 text-white"
                     : isActive
-                      ? "border-indigo-600 bg-white text-indigo-600"
+                      ? "border-blue-800 bg-white text-blue-800"
                       : "border-slate-200 bg-white text-slate-400"
                 }`}
               >
@@ -44,7 +44,7 @@ export default function Stepper({ steps, currentIndex }: StepperProps) {
             {index < steps.length - 1 ? (
               <span
                 className={`h-px flex-1 transition ${
-                  isComplete ? "bg-indigo-600" : "bg-slate-200"
+                  isComplete ? "bg-slate-950" : "bg-slate-200"
                 }`}
               />
             ) : null}

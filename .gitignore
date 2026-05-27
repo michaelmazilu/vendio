@@ -29,3 +29,4 @@ Thumbs.db
 # local screenshots / scratch
 *.tmp
 vendio-ui-*.png
+artifacts/ui-snapshots/

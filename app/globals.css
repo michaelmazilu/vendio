@@ -7,7 +7,7 @@
   --vendio-border: #e2e8f0;
   --vendio-text: #0f172a;
   --vendio-text-muted: #475569;
-  --vendio-accent: #4f46e5;
+  --vendio-accent: #1d4ed8;
 }
 
 * {
@@ -109,7 +109,7 @@ button {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(79, 70, 229, 0.08) 50%,
+    rgba(29, 78, 216, 0.08) 50%,
     transparent 100%
   );
   animation: vendio-shimmer 1.6s linear infinite;
