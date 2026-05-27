@@ -60,11 +60,19 @@ export async function generateListingFromPhotos({
     category: payload.listing.category,
     condition: payload.listing.condition,
     location: payload.listing.location,
+    confidence: payload.listing.confidence,
+    detectedItem: payload.listing.detectedItem,
+    pricingRationale: payload.listing.pricingRationale,
+    photoWarnings: payload.listing.photoWarnings,
+    qualityIssues: payload.listing.qualityIssues,
+    marketplaceCopy: payload.listing.marketplaceCopy,
   };
 
   return {
+    listingId: payload.listingId,
     listing,
     imageIds: payload.images.map((image) => image.id),
+    imageUrls: payload.images.map((image) => image.url),
     aiMode: payload.aiMode,
   };
 }
@@ -95,7 +103,13 @@ export async function postListingToMarketplace({
 
   return {
     marketplace,
-    listingUrl: payload.listingUrl,
+    listingUrl: payload.publishedUrl ?? payload.listingUrl,
+    publishedUrl: payload.publishedUrl,
     message: payload.message,
+    status: payload.status,
+    attemptId: payload.attemptId,
+    fieldWarnings: payload.fieldWarnings,
+    screenshotPath: payload.screenshotPath,
+    manualActionRequired: payload.manualActionRequired,
   };
 }

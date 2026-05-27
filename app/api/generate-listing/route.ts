@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   generateDescriptionFromImages,
   generateFullListingFromImages,
@@ -20,6 +22,7 @@ export async function POST(request: Request) {
     }
 
     const images = await saveUploadedImages(files);
+    const listingId = randomUUID();
 
     const titleField = formData.get("title");
     const notes = (formData.get("notes") as string | null)?.trim() ?? "";
@@ -36,6 +39,7 @@ export async function POST(request: Request) {
       });
       const generated = await generateDescriptionFromImages({ basics, images });
       const response: GenerateListingResponse = {
+        listingId,
         listing: { ...basics, description: generated.description },
         images: toPublicImages(images),
         aiMode: generated.aiMode,
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
 
     const full = await generateFullListingFromImages({ images, notes, location });
     const response: GenerateListingResponse = {
+      listingId,
       listing: full.listing,
       images: toPublicImages(images),
       aiMode: full.aiMode,

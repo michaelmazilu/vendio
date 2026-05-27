@@ -13,6 +13,7 @@ import PostingStep from "@/components/steps/PostingStep";
 import ReviewStep from "@/components/steps/ReviewStep";
 import UploadStep from "@/components/steps/UploadStep";
 import { generateListingFromPhotos } from "@/lib/client/marketplaceFlow";
+import { buildListingWithActivity, revokeUploadedPhotos } from "@/lib/client/listingSummary";
 import type {
   AppStep,
   GeneratedListing,
@@ -44,7 +45,9 @@ export default function Page() {
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [notes, setNotes] = useState("");
   const [listing, setListing] = useState<GeneratedListing | null>(null);
+  const [listingSessionId, setListingSessionId] = useState<string | null>(null);
   const [storedImageIds, setStoredImageIds] = useState<string[]>([]);
+  const [storedImageUrls, setStoredImageUrls] = useState<string[]>([]);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
   const [listings, setListings] = useState<ListingWithActivity[]>([]);
@@ -52,7 +55,7 @@ export default function Page() {
 
   useEffect(() => {
     return () => {
-      photos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      revokeUploadedPhotos(photos);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -70,10 +73,13 @@ export default function Page() {
   }
 
   function resetFlow() {
+    revokeUploadedPhotos(photos);
     setPhotos([]);
     setNotes("");
     setListing(null);
+    setListingSessionId(null);
     setStoredImageIds([]);
+    setStoredImageUrls([]);
     setGenerateError(null);
     setPostError(null);
     setStep("upload");
@@ -89,7 +95,9 @@ export default function Page() {
         notes,
       });
       setListing(generated.listing);
+      setListingSessionId(generated.listingId);
       setStoredImageIds(generated.imageIds);
+      setStoredImageUrls(generated.imageUrls);
       setStep("review");
     } catch (error) {
       const message =
@@ -108,38 +116,21 @@ export default function Page() {
       return;
     }
 
-    const marketplaceUrls = Object.fromEntries(
-      results
-        .filter((result) => result.listingUrl)
-        .map((result) => [result.marketplace, result.listingUrl!]),
-    ) as Partial<Record<Marketplace, string>>;
+    const id = listingSessionId ?? `listing-${Date.now().toString(36)}`;
+    const postedAt = new Date().toISOString();
+    const photoUrls =
+      storedImageUrls.length > 0
+        ? storedImageUrls
+        : photos.map((photo) => photo.previewUrl);
 
-    const postMessages = Object.fromEntries(
-      results.map((result) => [result.marketplace, result.message]),
-    ) as Partial<Record<Marketplace, string>>;
-
-    const primaryUrl =
-      results.find((result) => result.listingUrl)?.listingUrl ??
-      (connected[0] === "facebook"
-        ? "https://www.facebook.com/marketplace"
-        : "https://www.kijiji.ca");
-
-    const id = `listing-${Date.now().toString(36)}`;
-
-    const postedSummary: ListingWithActivity = {
+    const postedSummary = buildListingWithActivity({
       id,
       listing,
       marketplaces: [...connected],
-      primaryPhotoUrl: photos[0]?.previewUrl ?? "",
-      photoUrls: photos.map((photo) => photo.previewUrl),
-      postedAt: new Date().toISOString(),
-      listingUrl: primaryUrl,
-      marketplaceUrls,
-      postMessages,
-      views: 0,
-      saves: 0,
-      conversations: [],
-    };
+      photoUrls,
+      postedAt,
+      results,
+    });
 
     setListings((current) => [postedSummary, ...current]);
     setActiveListingId(id);
@@ -150,6 +141,8 @@ export default function Page() {
   function openInbox(listingId?: string) {
     if (listingId) {
       setActiveListingId(listingId);
+    } else if (!activeListingId && listings.length > 0) {
+      setActiveListingId(listings[0]!.id);
     }
     setStep("inbox");
   }
@@ -158,10 +151,12 @@ export default function Page() {
   const canPost = storedImageIds.length > 0;
   const showStepper = flowIndex !== undefined && step !== "home" && step !== "inbox";
 
-  const activeSummary = useMemo(
-    () => listings.find((entry) => entry.id === activeListingId) ?? null,
-    [listings, activeListingId],
-  );
+  const activeSummary = useMemo(() => {
+    if (activeListingId) {
+      return listings.find((entry) => entry.id === activeListingId) ?? null;
+    }
+    return listings[0] ?? null;
+  }, [listings, activeListingId]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -202,6 +197,7 @@ export default function Page() {
             photos={photos}
             notes={notes}
             marketplaces={connected}
+            generateError={generateError}
             onPhotosChange={setPhotos}
             onNotesChange={setNotes}
             onGenerate={startGeneration}
@@ -209,7 +205,7 @@ export default function Page() {
           />
         ) : null}
 
-        {step === "generating" ? <GeneratingStep error={generateError} /> : null}
+        {step === "generating" ? <GeneratingStep error={null} /> : null}
 
         {step === "review" && listing ? (
           <ReviewStep
@@ -231,7 +227,6 @@ export default function Page() {
                 ? "Photos were not saved on the server. Go back and generate again before posting."
                 : null)
             }
-            generateWarning={generateError}
           />
         ) : null}
 

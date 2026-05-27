@@ -197,12 +197,6 @@ async function clickWhenEnabled(
   return "stayed-disabled";
 }
 
-function formatManualNote(warnings: string[]) {
-  return warnings.length > 0
-    ? ` Finish ${warnings.join(", ")} manually in the browser before publishing.`
-    : "";
-}
-
 export async function postToFacebookMarketplace({
   listing,
   images,

@@ -18,6 +18,7 @@ type UploadStepProps = {
   photos: UploadedPhoto[];
   notes: string;
   marketplaces: Marketplace[];
+  generateError?: string | null;
   onPhotosChange: (photos: UploadedPhoto[]) => void;
   onNotesChange: (notes: string) => void;
   onGenerate: () => void;
@@ -50,6 +51,7 @@ export default function UploadStep({
   photos,
   notes,
   marketplaces,
+  generateError,
   onPhotosChange,
   onNotesChange,
   onGenerate,
@@ -190,6 +192,12 @@ export default function UploadStep({
             </div>
           ))}
         </div>
+      ) : null}
+
+      {generateError ? (
+        <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {generateError}
+        </p>
       ) : null}
 
       <div className="mt-8">
